@@ -9,6 +9,7 @@ const fileNameEl = document.querySelector("#fileName");
 const pageCountEl = document.querySelector("#pageCount");
 const originalCountEl = document.querySelector("#originalCount");
 const blankCountEl = document.querySelector("#blankCount");
+const deletedCountEl = document.querySelector("#deletedCount");
 const outputCountEl = document.querySelector("#outputCount");
 const downloadBtn = document.querySelector("#downloadBtn");
 const resetBtn = document.querySelector("#resetBtn");
@@ -16,6 +17,13 @@ const pageList = document.querySelector("#pageList");
 const emptyState = document.querySelector("#emptyState");
 const previewList = document.querySelector("#previewList");
 const previewEmpty = document.querySelector("#previewEmpty");
+const mergeInput = document.querySelector("#mergeInput");
+const mergeEmpty = document.querySelector("#mergeEmpty");
+const mergeList = document.querySelector("#mergeList");
+const mergeDownloadBtn = document.querySelector("#mergeDownloadBtn");
+const mergeClearBtn = document.querySelector("#mergeClearBtn");
+const splitRangeInput = document.querySelector("#splitRangeInput");
+const splitDownloadBtn = document.querySelector("#splitDownloadBtn");
 
 const state = {
   file: null,
@@ -24,10 +32,20 @@ const state = {
   renderToken: 0,
   pageSizes: [],
   insertions: new Map(),
+  deletedPages: new Set(),
+  mergeFiles: [],
 };
 
-function totalBlankPages() {
-  return [...state.insertions.values()].reduce((sum, count) => sum + count, 0);
+function activeBlankPages() {
+  let count = getInsertionCount(0);
+
+  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+    if (!state.deletedPages.has(pageNumber)) {
+      count += getInsertionCount(pageNumber);
+    }
+  }
+
+  return count;
 }
 
 function getInsertionCount(position) {
@@ -42,15 +60,23 @@ function setInsertionCount(position, count) {
   state.insertions.set(position, count);
 }
 
+function hasPendingPageEdits() {
+  const outputCount = state.pageSizes.length - state.deletedPages.size + activeBlankPages();
+  return outputCount > 0 && (activeBlankPages() > 0 || state.deletedPages.size > 0);
+}
+
 function updateSummary() {
   const originalCount = state.pageSizes.length;
-  const blankCount = totalBlankPages();
+  const blankCount = activeBlankPages();
+  const deletedCount = state.deletedPages.size;
 
   originalCountEl.textContent = String(originalCount);
   blankCountEl.textContent = String(blankCount);
-  outputCountEl.textContent = String(originalCount + blankCount);
-  downloadBtn.disabled = !state.file || blankCount === 0;
-  resetBtn.disabled = !state.file || blankCount === 0;
+  deletedCountEl.textContent = String(deletedCount);
+  outputCountEl.textContent = String(originalCount - deletedCount + blankCount);
+  downloadBtn.disabled = !state.file || !hasPendingPageEdits();
+  resetBtn.disabled = !state.file || !hasPendingPageEdits();
+  splitDownloadBtn.disabled = !state.file || splitRangeInput.value.trim() === "";
 
   if (!state.file) {
     fileNameEl.textContent = "尚未选择";
@@ -59,7 +85,7 @@ function updateSummary() {
   }
 
   fileNameEl.textContent = state.file.name;
-  pageCountEl.textContent = `${originalCount} 页，已安排 ${blankCount} 张空白页`;
+  pageCountEl.textContent = `${originalCount} 页，已安排 ${blankCount} 张空白页，删除 ${deletedCount} 页`;
 }
 
 function getOutputSequence() {
@@ -73,6 +99,8 @@ function getOutputSequence() {
   }
 
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+    if (state.deletedPages.has(pageNumber)) continue;
+
     sequence.push({ type: "page", label: `原 ${pageNumber}` });
 
     const blanksHere = getInsertionCount(pageNumber);
@@ -105,19 +133,26 @@ function renderPreview() {
 
 function makeRow(position) {
   const row = document.createElement("article");
-  row.className = "page-row";
+  row.className = `page-row ${state.deletedPages.has(position) ? "is-deleted" : ""}`;
   row.dataset.position = String(position);
 
   const count = getInsertionCount(position);
+  const isDeleted = state.deletedPages.has(position);
   const label = position === 0 ? "首页前" : `第 ${position} 页后`;
   const detail =
     position === 0
       ? "输出 PDF 最前面"
-      : `原始第 ${position} 页内容保持不变`;
+      : isDeleted
+        ? `原始第 ${position} 页将从输出中删除`
+        : `原始第 ${position} 页内容保持不变`;
   const thumbnailMarkup =
     position === 0
       ? `<div class="blank-preview" aria-hidden="true">空白</div>`
       : `<canvas class="page-thumb" data-page="${position}" aria-label="原始第 ${position} 页预览"></canvas>`;
+  const deleteButton =
+    position === 0
+      ? ""
+      : `<button class="delete-page" type="button">${isDeleted ? "恢复页面" : "删除页面"}</button>`;
 
   row.innerHTML = `
     <div class="page-id">
@@ -127,10 +162,13 @@ function makeRow(position) {
         <span>${detail}</span>
       </div>
     </div>
-    <div class="stepper" aria-label="${label} 空白页数量">
-      <button class="minus" type="button" title="减少空白页" ${count === 0 ? "disabled" : ""}>-</button>
-      <span>${count}</span>
-      <button class="plus" type="button" title="增加空白页">+</button>
+    <div class="page-tools">
+      ${deleteButton}
+      <div class="stepper" aria-label="${label} 空白页数量">
+        <button class="minus" type="button" title="减少空白页" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
+        <span>${isDeleted ? "删" : count}</span>
+        <button class="plus" type="button" title="增加空白页" ${isDeleted ? "disabled" : ""}>+</button>
+      </div>
     </div>
   `;
 
@@ -141,6 +179,15 @@ function makeRow(position) {
 
   row.querySelector(".plus").addEventListener("click", () => {
     setInsertionCount(position, getInsertionCount(position) + 1);
+    renderPages();
+  });
+
+  row.querySelector(".delete-page")?.addEventListener("click", () => {
+    if (state.deletedPages.has(position)) {
+      state.deletedPages.delete(position);
+    } else {
+      state.deletedPages.add(position);
+    }
     renderPages();
   });
 
@@ -214,6 +261,7 @@ async function loadPdf(file) {
   state.renderToken += 1;
   state.pageSizes = pdf.getPages().map((page) => page.getSize());
   state.insertions.clear();
+  state.deletedPages.clear();
 
   renderPages();
 }
@@ -245,6 +293,8 @@ function applyPageLabels(outputPdf) {
   }
 
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+    if (state.deletedPages.has(pageNumber)) continue;
+
     addLabelRange(outputPdf, outputIndex, {
       S: PDFName.of("D"),
       St: PDFNumber.of(pageNumber),
@@ -271,16 +321,23 @@ async function buildOutputPdf() {
   const sourcePdf = await PDFDocument.load(state.bytes);
   const outputPdf = await PDFDocument.create();
   const pageCount = sourcePdf.getPageCount();
+  const outputCount = state.pageSizes.length - state.deletedPages.size + activeBlankPages();
+
+  if (outputCount === 0) {
+    throw new Error("输出 PDF 至少需要保留一页或插入一张空白页");
+  }
 
   for (let blank = 0; blank < getInsertionCount(0); blank += 1) {
     addBlankPage(outputPdf, 0);
   }
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const originalPageNumber = pageIndex + 1;
+    if (state.deletedPages.has(originalPageNumber)) continue;
+
     const [copiedPage] = await outputPdf.copyPages(sourcePdf, [pageIndex]);
     outputPdf.addPage(copiedPage);
 
-    const originalPageNumber = pageIndex + 1;
     for (let blank = 0; blank < getInsertionCount(originalPageNumber); blank += 1) {
       addBlankPage(outputPdf, originalPageNumber);
     }
@@ -302,6 +359,100 @@ function downloadBytes(bytes, filename) {
   URL.revokeObjectURL(url);
 }
 
+async function readPdfPageCount(file) {
+  const bytes = await file.arrayBuffer();
+  const pdf = await PDFDocument.load(bytes);
+  return pdf.getPageCount();
+}
+
+function updateMergeControls() {
+  const canMerge = state.mergeFiles.length >= 2;
+  mergeEmpty.hidden = state.mergeFiles.length > 0;
+  mergeDownloadBtn.disabled = !canMerge;
+  mergeClearBtn.disabled = state.mergeFiles.length === 0;
+}
+
+function renderMergeList() {
+  mergeList.innerHTML = "";
+
+  state.mergeFiles.forEach((item, index) => {
+    const row = document.createElement("article");
+    row.className = "merge-row";
+    row.innerHTML = `
+      <div class="merge-order">${index + 1}</div>
+      <div class="merge-info">
+        <strong>${item.file.name}</strong>
+        <span>${item.pageCount} 页</span>
+      </div>
+      <div class="merge-row-actions">
+        <button type="button" class="move-up" ${index === 0 ? "disabled" : ""}>上移</button>
+        <button type="button" class="move-down" ${index === state.mergeFiles.length - 1 ? "disabled" : ""}>下移</button>
+        <button type="button" class="remove">移除</button>
+      </div>
+    `;
+
+    row.querySelector(".move-up").addEventListener("click", () => {
+      const [itemToMove] = state.mergeFiles.splice(index, 1);
+      state.mergeFiles.splice(index - 1, 0, itemToMove);
+      renderMergeList();
+    });
+
+    row.querySelector(".move-down").addEventListener("click", () => {
+      const [itemToMove] = state.mergeFiles.splice(index, 1);
+      state.mergeFiles.splice(index + 1, 0, itemToMove);
+      renderMergeList();
+    });
+
+    row.querySelector(".remove").addEventListener("click", () => {
+      state.mergeFiles.splice(index, 1);
+      renderMergeList();
+    });
+
+    mergeList.appendChild(row);
+  });
+
+  updateMergeControls();
+}
+
+async function loadMergeFiles(files) {
+  const pdfFiles = [...files].filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+  if (pdfFiles.length === 0) return;
+
+  mergeDownloadBtn.disabled = true;
+  mergeDownloadBtn.textContent = "读取中...";
+
+  try {
+    const items = [];
+    for (const file of pdfFiles) {
+      items.push({
+        file,
+        pageCount: await readPdfPageCount(file),
+      });
+    }
+    state.mergeFiles = items;
+    renderMergeList();
+  } catch (error) {
+    alert(`读取合并文件失败：${error.message}`);
+  } finally {
+    mergeDownloadBtn.textContent = "下载合并 PDF";
+    updateMergeControls();
+  }
+}
+
+async function buildMergedPdf() {
+  const outputPdf = await PDFDocument.create();
+
+  for (const item of state.mergeFiles) {
+    const bytes = await item.file.arrayBuffer();
+    const sourcePdf = await PDFDocument.load(bytes);
+    const pageIndexes = sourcePdf.getPageIndices();
+    const copiedPages = await outputPdf.copyPages(sourcePdf, pageIndexes);
+    copiedPages.forEach((page) => outputPdf.addPage(page));
+  }
+
+  return outputPdf.save();
+}
+
 pdfInput.addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
@@ -316,12 +467,13 @@ pdfInput.addEventListener("change", async (event) => {
     state.renderToken += 1;
     state.pageSizes = [];
     state.insertions.clear();
+    state.deletedPages.clear();
     renderPages();
   }
 });
 
 downloadBtn.addEventListener("click", async () => {
-  if (!state.file || totalBlankPages() === 0) return;
+  if (!state.file || !hasPendingPageEdits()) return;
 
   downloadBtn.disabled = true;
   downloadBtn.textContent = "生成中...";
@@ -333,14 +485,110 @@ downloadBtn.addEventListener("click", async () => {
   } catch (error) {
     alert(`生成 PDF 失败：${error.message}`);
   } finally {
-    downloadBtn.textContent = "下载新 PDF";
+    downloadBtn.textContent = "下载处理后 PDF";
     updateSummary();
   }
 });
 
 resetBtn.addEventListener("click", () => {
   state.insertions.clear();
+  state.deletedPages.clear();
   renderPages();
 });
 
+function parsePageRanges(value, pageCount) {
+  const pages = [];
+  const seen = new Set();
+  const chunks = value.split(",").map((chunk) => chunk.trim()).filter(Boolean);
+
+  if (chunks.length === 0) {
+    throw new Error("请输入页码范围");
+  }
+
+  for (const chunk of chunks) {
+    const match = chunk.match(/^(\d+)(?:-(\d+))?$/);
+    if (!match) {
+      throw new Error(`无法识别页码范围：${chunk}`);
+    }
+
+    const start = Number(match[1]);
+    const end = match[2] ? Number(match[2]) : start;
+    if (start < 1 || end < 1 || start > pageCount || end > pageCount) {
+      throw new Error(`页码超出范围：${chunk}`);
+    }
+    if (start > end) {
+      throw new Error(`页码范围起点不能大于终点：${chunk}`);
+    }
+
+    for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
+      if (!seen.has(pageNumber)) {
+        seen.add(pageNumber);
+        pages.push(pageNumber);
+      }
+    }
+  }
+
+  return pages;
+}
+
+async function buildSplitPdf() {
+  const sourcePdf = await PDFDocument.load(state.bytes);
+  const outputPdf = await PDFDocument.create();
+  const selectedPages = parsePageRanges(splitRangeInput.value, sourcePdf.getPageCount());
+  const copiedPages = await outputPdf.copyPages(
+    sourcePdf,
+    selectedPages.map((pageNumber) => pageNumber - 1),
+  );
+  copiedPages.forEach((page) => outputPdf.addPage(page));
+  return outputPdf.save();
+}
+
+splitRangeInput.addEventListener("input", updateSummary);
+
+splitDownloadBtn.addEventListener("click", async () => {
+  if (!state.file) return;
+
+  splitDownloadBtn.disabled = true;
+  splitDownloadBtn.textContent = "拆分中...";
+
+  try {
+    const outputBytes = await buildSplitPdf();
+    const baseName = state.file.name.replace(/\.pdf$/i, "");
+    downloadBytes(outputBytes, `${baseName}-split.pdf`);
+  } catch (error) {
+    alert(`拆分 PDF 失败：${error.message}`);
+  } finally {
+    splitDownloadBtn.textContent = "下载拆分 PDF";
+    updateSummary();
+  }
+});
+
+mergeInput.addEventListener("change", async (event) => {
+  await loadMergeFiles(event.target.files);
+});
+
+mergeDownloadBtn.addEventListener("click", async () => {
+  if (state.mergeFiles.length < 2) return;
+
+  mergeDownloadBtn.disabled = true;
+  mergeDownloadBtn.textContent = "合并中...";
+
+  try {
+    const outputBytes = await buildMergedPdf();
+    downloadBytes(outputBytes, "merged.pdf");
+  } catch (error) {
+    alert(`合并 PDF 失败：${error.message}`);
+  } finally {
+    mergeDownloadBtn.textContent = "下载合并 PDF";
+    updateMergeControls();
+  }
+});
+
+mergeClearBtn.addEventListener("click", () => {
+  state.mergeFiles = [];
+  mergeInput.value = "";
+  renderMergeList();
+});
+
 renderPages();
+renderMergeList();
