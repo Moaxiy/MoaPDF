@@ -256,7 +256,7 @@ function renderVisibleThumbnails() {
   for (const canvas of canvases) {
     const pageNumber = Number(canvas.dataset.page);
     renderThumbnail(pageNumber, canvas, token).catch((error) => {
-      canvas.replaceWith(document.createTextNode(`预览失败：${error.message}`));
+      canvas.replaceWith(document.createTextNode(`预览失败：${getErrorMessage(error)}`));
     });
   }
 }
@@ -395,15 +395,26 @@ function isTauriApp() {
   return Boolean(window.__TAURI_INTERNALS__);
 }
 
+function getErrorMessage(error) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized && serialized !== "{}" ? serialized : String(error);
+  } catch {
+    return String(error);
+  }
+}
+
 async function saveBytes(bytes, filename, type = "application/pdf") {
   if (!isTauriApp()) {
     downloadBytes(bytes, filename, type);
     return;
   }
 
-  const [{ save }, { writeFile }] = await Promise.all([
+  const [{ save }, { invoke }] = await Promise.all([
     import("@tauri-apps/plugin-dialog"),
-    import("@tauri-apps/plugin-fs"),
+    import("@tauri-apps/api/core"),
   ]);
 
   const filePath = await save({
@@ -421,7 +432,7 @@ async function saveBytes(bytes, filename, type = "application/pdf") {
   }
 
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  await writeFile(filePath, data);
+  await invoke("save_export", { path: filePath, bytes: Array.from(data) });
 }
 
 function switchPage(targetId) {
@@ -794,7 +805,7 @@ async function loadMergeFiles(files) {
     state.mergeFiles = items;
     renderMergeList();
   } catch (error) {
-    alert(`读取合并文件失败：${error.message}`);
+    alert(`读取合并文件失败：${getErrorMessage(error)}`);
   } finally {
     mergeDownloadBtn.textContent = "下载合并 PDF";
     updateMergeControls();
@@ -822,7 +833,7 @@ pdfInput.addEventListener("change", async (event) => {
   try {
     await loadPdf(file);
   } catch (error) {
-    alert(`读取 PDF 失败：${error.message}`);
+    alert(`读取 PDF 失败：${getErrorMessage(error)}`);
     state.file = null;
     state.bytes = null;
     state.previewPdf = null;
@@ -845,7 +856,7 @@ downloadBtn.addEventListener("click", async () => {
     const baseName = state.file.name.replace(/\.pdf$/i, "");
     await saveBytes(outputBytes, `${baseName}-with-blanks.pdf`);
   } catch (error) {
-    alert(`生成 PDF 失败：${error.message}`);
+    alert(`生成 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     downloadBtn.textContent = "下载处理后 PDF";
     updateSummary();
@@ -918,7 +929,7 @@ splitDownloadBtn.addEventListener("click", async () => {
     const baseName = state.file.name.replace(/\.pdf$/i, "");
     await saveBytes(outputBytes, `${baseName}-split.pdf`);
   } catch (error) {
-    alert(`拆分 PDF 失败：${error.message}`);
+    alert(`拆分 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     splitDownloadBtn.textContent = "下载拆分 PDF";
     updateSummary();
@@ -939,7 +950,7 @@ mergeDownloadBtn.addEventListener("click", async () => {
     const outputBytes = await buildMergedPdf();
     await saveBytes(outputBytes, "merged.pdf");
   } catch (error) {
-    alert(`合并 PDF 失败：${error.message}`);
+    alert(`合并 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     mergeDownloadBtn.textContent = "下载合并 PDF";
     updateMergeControls();
@@ -980,7 +991,7 @@ imageToPdfBtn.addEventListener("click", async () => {
     await saveBytes(outputBytes, "images.pdf");
     imageToPdfStatus.textContent = `已生成 ${state.imageFiles.length} 页 PDF`;
   } catch (error) {
-    alert(`图片转 PDF 失败：${error.message}`);
+    alert(`图片转 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     imageToPdfBtn.textContent = "下载图片 PDF";
     imageToPdfBtn.disabled = state.imageFiles.length === 0;
@@ -1012,7 +1023,7 @@ pdfToImagesBtn.addEventListener("click", async () => {
     await saveBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
     pdfToImagesStatus.textContent = "图片 ZIP 已生成";
   } catch (error) {
-    alert(`PDF 转图片失败：${error.message}`);
+    alert(`PDF 转图片失败：${getErrorMessage(error)}`);
   } finally {
     pdfToImagesBtn.textContent = "下载图片 ZIP";
     pdfToImagesBtn.disabled = !state.pdfToImagesFile;
@@ -1038,7 +1049,7 @@ textToPdfBtn.addEventListener("click", async () => {
     await saveBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
     textToPdfStatus.textContent = "文本 PDF 已生成";
   } catch (error) {
-    alert(`文本转 PDF 失败：${error.message}`);
+    alert(`文本转 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     textToPdfBtn.textContent = "下载文本 PDF";
     textToPdfBtn.disabled = !state.textFile;
@@ -1072,7 +1083,7 @@ compressPdfBtn.addEventListener("click", async () => {
     await saveBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
     compressPdfStatus.textContent = `${result.strategy}：${(beforeSize / 1024 / 1024).toFixed(2)} MB -> ${(afterSize / 1024 / 1024).toFixed(2)} MB，减少 ${ratio}%`;
   } catch (error) {
-    alert(`PDF 压缩失败：${error.message}`);
+    alert(`PDF 压缩失败：${getErrorMessage(error)}`);
   } finally {
     compressPdfBtn.textContent = "下载压缩 PDF";
     compressPdfBtn.disabled = !state.compressFile;
@@ -1098,7 +1109,7 @@ pdfToTextBtn.addEventListener("click", async () => {
     await saveBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
     pdfToTextStatus.textContent = "TXT 已生成";
   } catch (error) {
-    alert(`PDF 转 TXT 失败：${error.message}`);
+    alert(`PDF 转 TXT 失败：${getErrorMessage(error)}`);
   } finally {
     pdfToTextBtn.textContent = "下载 TXT";
     pdfToTextBtn.disabled = !state.pdfToTextFile;
@@ -1131,7 +1142,7 @@ pdfToJpgBtn.addEventListener("click", async () => {
     await saveBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
     pdfToJpgStatus.textContent = `JPG ZIP 已生成，质量 ${(quality * 100).toFixed(0)}%`;
   } catch (error) {
-    alert(`PDF 转 JPG 失败：${error.message}`);
+    alert(`PDF 转 JPG 失败：${getErrorMessage(error)}`);
   } finally {
     pdfToJpgBtn.textContent = "下载 JPG ZIP";
     pdfToJpgBtn.disabled = !state.pdfToJpgFile;
