@@ -392,14 +392,21 @@ function downloadBytes(bytes, filename, type = "application/pdf") {
 }
 
 function switchPage(targetId) {
+  const targetExists = [...appPages].some((page) => page.id === targetId);
+  const nextTargetId = targetExists ? targetId : "editPage";
+
   appPages.forEach((page) => {
-    page.hidden = page.id !== targetId;
-    page.classList.toggle("is-active", page.id === targetId);
+    page.hidden = page.id !== nextTargetId;
+    page.classList.toggle("is-active", page.id === nextTargetId);
   });
 
   navTabs.forEach((tab) => {
-    tab.classList.toggle("is-active", tab.dataset.pageTarget === targetId);
+    tab.classList.toggle("is-active", tab.dataset.pageTarget === nextTargetId);
   });
+
+  if (window.location.hash !== `#${nextTargetId}`) {
+    window.history.replaceState(null, "", `#${nextTargetId}`);
+  }
 }
 
 function getFileBaseName(file) {
@@ -918,6 +925,10 @@ navTabs.forEach((tab) => {
   });
 });
 
+window.addEventListener("hashchange", () => {
+  switchPage(window.location.hash.slice(1) || "editPage");
+});
+
 imageToPdfInput.addEventListener("change", (event) => {
   state.imageFiles = [...event.target.files].filter((file) => file.type.startsWith("image/"));
   imageToPdfBtn.disabled = state.imageFiles.length === 0;
@@ -1096,3 +1107,4 @@ pdfToJpgBtn.addEventListener("click", async () => {
 
 renderPages();
 renderMergeList();
+switchPage(window.location.hash.slice(1) || "editPage");
