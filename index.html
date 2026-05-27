@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF 空白页插入工具</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="PDF 工具栏">
+        <div class="brand">
+          <span class="brand-mark">PDF</span>
+          <div>
+            <h1>空白页插入</h1>
+            <p>按原始页码插入，原 PDF 页面内容不改动。</p>
+          </div>
+        </div>
+
+        <label class="file-picker">
+          <input id="pdfInput" type="file" accept="application/pdf" />
+          <span>选择 PDF</span>
+        </label>
+      </section>
+
+      <section class="workspace">
+        <aside class="summary-panel" aria-label="操作摘要">
+          <div class="status-block">
+            <span class="kicker">当前文件</span>
+            <strong id="fileName">尚未选择</strong>
+            <span id="pageCount">选择 PDF 后显示页码</span>
+          </div>
+
+          <div class="stat-grid">
+            <div>
+              <span>原页数</span>
+              <strong id="originalCount">0</strong>
+            </div>
+            <div>
+              <span>空白页</span>
+              <strong id="blankCount">0</strong>
+            </div>
+            <div>
+              <span>输出页数</span>
+              <strong id="outputCount">0</strong>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="downloadBtn" class="primary" disabled>下载新 PDF</button>
+            <button id="resetBtn" class="secondary" disabled>清空插入</button>
+          </div>
+
+          <p class="hint">
+            插入位置始终按原始 PDF 页码计算，已生成页面不会反向影响页码。
+          </p>
+        </aside>
+
+        <section class="pages-panel" aria-label="页码列表">
+          <div class="empty-state" id="emptyState">
+            <strong>选择一个 PDF 开始</strong>
+            <span>页面会按原始页码排列，每一行都可以单独添加空白页。</span>
+          </div>
+          <div class="page-list" id="pageList"></div>
+        </section>
+
+        <section class="preview-panel" aria-label="最终页序预览">
+          <div class="preview-head">
+            <strong>最终页序预览</strong>
+            <span>这里显示下载后 PDF 的物理页顺序</span>
+          </div>
+          <div class="preview-empty" id="previewEmpty">选择 PDF 后显示预览</div>
+          <div class="preview-list" id="previewList"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
