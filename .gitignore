@@ -1,6 +1,9 @@
 node_modules/
 dist/
+release/
 tmp/
+src-tauri/target/
+src-tauri/gen/
 __pycache__/
 *.pyc
 .DS_Store
