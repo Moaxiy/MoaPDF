@@ -1,5 +1,5 @@
 {
-  "name": "codex-pdf-blank-inserter",
+  "name": "moapdf",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "vite": "^5.4.0"

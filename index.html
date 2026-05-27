@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF 空白页插入工具</title>
+    <title>MoaPDF</title>
     <link rel="icon" href="/codex-pdf-icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
@@ -15,100 +15,241 @@
             <img src="/codex-pdf-icon.svg" alt="" />
           </span>
           <div>
-            <h1>Codex PDF</h1>
+            <h1>MoaPDF</h1>
             <p>插入空白页、删除、拆分和合并，全部在本地完成。</p>
           </div>
         </div>
 
-        <label class="file-picker">
-          <input id="pdfInput" type="file" accept="application/pdf" />
-          <span>打开 PDF</span>
-        </label>
+        <nav class="page-switcher" aria-label="页面切换">
+          <button class="nav-tab is-active" type="button" data-page-target="editPage">页面整理</button>
+          <button class="nav-tab" type="button" data-page-target="convertPage">格式转换</button>
+        </nav>
       </section>
 
-      <section class="document-bar" aria-label="当前 PDF 状态">
-        <div class="status-block">
-          <span class="kicker">当前文件</span>
-          <strong id="fileName">尚未选择</strong>
-          <span id="pageCount">选择 PDF 后显示页码</span>
-        </div>
+      <section class="app-page is-active" id="editPage">
+        <section class="document-bar" aria-label="当前 PDF 状态">
+          <div class="status-block">
+            <span class="kicker">当前文件</span>
+            <strong id="fileName">尚未选择</strong>
+            <span id="pageCount">选择 PDF 后显示页码</span>
+          </div>
 
-        <div class="stat-grid">
-          <div>
-            <span>原页数</span>
-            <strong id="originalCount">0</strong>
+          <div class="stat-grid">
+            <div>
+              <span>原页数</span>
+              <strong id="originalCount">0</strong>
+            </div>
+            <div>
+              <span>空白页</span>
+              <strong id="blankCount">0</strong>
+            </div>
+            <div>
+              <span>删除页</span>
+              <strong id="deletedCount">0</strong>
+            </div>
+            <div>
+              <span>输出页数</span>
+              <strong id="outputCount">0</strong>
+            </div>
           </div>
-          <div>
-            <span>空白页</span>
-            <strong id="blankCount">0</strong>
-          </div>
-          <div>
-            <span>删除页</span>
-            <strong id="deletedCount">0</strong>
-          </div>
-          <div>
-            <span>输出页数</span>
-            <strong id="outputCount">0</strong>
-          </div>
-        </div>
 
-        <div class="actions">
-          <button id="downloadBtn" class="primary" disabled>下载处理后 PDF</button>
-          <button id="resetBtn" class="secondary" disabled>清空操作</button>
-        </div>
-      </section>
-
-      <section class="workspace">
-        <section class="pages-panel" aria-label="页码列表">
-          <div class="empty-state" id="emptyState">
-            <strong>选择一个 PDF 开始</strong>
-            <span>页面会按原始页码排列，每一行都可以单独添加空白页。</span>
+          <div class="actions">
+            <label class="file-picker">
+              <input id="pdfInput" type="file" accept="application/pdf" />
+              <span>打开 PDF</span>
+            </label>
+            <button id="downloadBtn" class="primary" disabled>下载处理后 PDF</button>
+            <button id="resetBtn" class="secondary" disabled>清空操作</button>
           </div>
-          <div class="page-list" id="pageList"></div>
         </section>
 
-        <aside class="tools-panel" aria-label="PDF 工具">
-          <p class="hint">
-            插入位置始终按原始 PDF 页码计算，已生成页面不会反向影响页码。
-          </p>
-
-          <div class="split-tool" aria-label="拆分 PDF">
-            <div>
-              <strong>拆分 PDF</strong>
-              <span>输入页码范围导出新文件</span>
+        <section class="workspace">
+          <section class="pages-panel" aria-label="页码列表">
+            <div class="empty-state" id="emptyState">
+              <strong>选择一个 PDF 开始</strong>
+              <span>页面会按原始页码排列，每一行都可以单独添加空白页。</span>
             </div>
-            <input id="splitRangeInput" type="text" placeholder="例如 1-3, 6, 9-12" />
-            <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
-          </div>
+            <div class="page-list" id="pageList"></div>
+          </section>
 
-          <section class="merge-panel" aria-label="PDF 合并">
-            <div class="merge-head">
+          <aside class="tools-panel" aria-label="PDF 工具">
+            <p class="hint">
+              插入位置始终按原始 PDF 页码计算，已生成页面不会反向影响页码。
+            </p>
+
+            <div class="split-tool" aria-label="拆分 PDF">
               <div>
-                <strong>合并 PDF</strong>
-                <span>按列表顺序合并多个文件</span>
+                <strong>拆分 PDF</strong>
+                <span>输入页码范围导出新文件</span>
               </div>
-              <label class="file-picker merge-picker">
-                <input id="mergeInput" type="file" accept="application/pdf" multiple />
-                <span>选择多个</span>
+              <input id="splitRangeInput" type="text" placeholder="例如 1-3, 6, 9-12" />
+              <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
+            </div>
+
+            <section class="merge-panel" aria-label="PDF 合并">
+              <div class="merge-head">
+                <div>
+                  <strong>合并 PDF</strong>
+                  <span>按列表顺序合并多个文件</span>
+                </div>
+                <label class="file-picker merge-picker">
+                  <input id="mergeInput" type="file" accept="application/pdf" multiple />
+                  <span>选择多个</span>
+                </label>
+              </div>
+              <div class="merge-empty" id="mergeEmpty">选择两个或更多 PDF 后开始合并</div>
+              <div class="merge-list" id="mergeList"></div>
+              <div class="merge-actions">
+                <button id="mergeDownloadBtn" class="primary" disabled>下载合并 PDF</button>
+                <button id="mergeClearBtn" class="secondary" disabled>清空列表</button>
+              </div>
+            </section>
+
+            <section class="preview-panel" aria-label="最终页序预览">
+              <div class="preview-head">
+                <strong>最终页序</strong>
+                <span>下载后的物理页顺序</span>
+              </div>
+              <div class="preview-empty" id="previewEmpty">选择 PDF 后显示预览</div>
+              <div class="preview-list" id="previewList"></div>
+            </section>
+          </aside>
+        </section>
+      </section>
+
+      <section class="app-page" id="convertPage" hidden>
+        <section class="convert-hero">
+          <div>
+            <span class="kicker">转换与压缩</span>
+            <h2>文件与 PDF 的本地转换工作台</h2>
+            <p>支持图片转 PDF、PDF 转图片、文本/Markdown 转 PDF，以及基础 PDF 压缩。所有文件都在浏览器本地处理。</p>
+          </div>
+        </section>
+
+        <section class="convert-grid" aria-label="转换压缩工具">
+          <article class="convert-card accent-card">
+            <div class="tool-card-head">
+              <span>01</span>
+              <div>
+                <strong>图片转 PDF</strong>
+                <p>支持 PNG、JPG、WebP，多张图片按选择顺序生成 PDF。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="imageToPdfInput" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+              <span>选择图片</span>
+            </label>
+            <button id="imageToPdfBtn" class="primary" disabled>下载图片 PDF</button>
+            <p id="imageToPdfStatus" class="tool-status">尚未选择图片</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>02</span>
+              <div>
+                <strong>PDF 转 PNG</strong>
+                <p>将 PDF 每一页渲染为 PNG，并打包为 ZIP 下载。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="pdfToImagesInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <button id="pdfToImagesBtn" class="primary" disabled>下载图片 ZIP</button>
+            <p id="pdfToImagesStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>03</span>
+              <div>
+                <strong>文本 / Markdown 转 PDF</strong>
+                <p>导入 TXT、MD，按纯文本排版导出 PDF。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="textToPdfInput" type="file" accept=".txt,.md,text/plain,text/markdown" />
+              <span>选择文本文件</span>
+            </label>
+            <button id="textToPdfBtn" class="primary" disabled>下载文本 PDF</button>
+            <p id="textToPdfStatus" class="tool-status">尚未选择文本文件</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>04</span>
+              <div>
+                <strong>PDF 压缩</strong>
+                <p>支持无损优化和重渲染强压，扫描件、图片型 PDF 减重更明显。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="compressPdfInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <div class="compression-options" aria-label="PDF 压缩设置">
+              <label>
+                <span>压缩模式</span>
+                <select id="compressModeSelect">
+                  <option value="balanced" selected>均衡压缩</option>
+                  <option value="lossless">无损优化</option>
+                  <option value="strong">强力压缩</option>
+                  <option value="extreme">极限压缩</option>
+                </select>
+              </label>
+              <label>
+                <span>图片质量</span>
+                <input id="compressQualityInput" type="range" min="0.35" max="0.92" step="0.03" value="0.72" />
+              </label>
+              <label>
+                <span>页面缩放</span>
+                <input id="compressScaleInput" type="range" min="0.75" max="1.8" step="0.05" value="1.15" />
+              </label>
+              <label class="check-row">
+                <input id="compressGrayscaleInput" type="checkbox" />
+                <span>转为灰度以进一步减小体积</span>
               </label>
             </div>
-            <div class="merge-empty" id="mergeEmpty">选择两个或更多 PDF 后开始合并</div>
-            <div class="merge-list" id="mergeList"></div>
-            <div class="merge-actions">
-              <button id="mergeDownloadBtn" class="primary" disabled>下载合并 PDF</button>
-              <button id="mergeClearBtn" class="secondary" disabled>清空列表</button>
-            </div>
-          </section>
+            <button id="compressPdfBtn" class="primary" disabled>下载压缩 PDF</button>
+            <p id="compressPdfStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
 
-          <section class="preview-panel" aria-label="最终页序预览">
-            <div class="preview-head">
-              <strong>最终页序</strong>
-              <span>下载后的物理页顺序</span>
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>05</span>
+              <div>
+                <strong>PDF 转 TXT</strong>
+                <p>提取 PDF 中可复制的文本内容，导出为 TXT 文件。</p>
+              </div>
             </div>
-            <div class="preview-empty" id="previewEmpty">选择 PDF 后显示预览</div>
-            <div class="preview-list" id="previewList"></div>
-          </section>
-        </aside>
+            <label class="tool-drop">
+              <input id="pdfToTextInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <button id="pdfToTextBtn" class="primary" disabled>下载 TXT</button>
+            <p id="pdfToTextStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>06</span>
+              <div>
+                <strong>PDF 转 JPG</strong>
+                <p>将 PDF 页面导出为 JPG，适合获得更小的图片文件。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="pdfToJpgInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <label class="quality-field">
+              <span>JPG 质量</span>
+              <input id="jpgQualityInput" type="range" min="0.45" max="0.95" step="0.05" value="0.8" />
+            </label>
+            <button id="pdfToJpgBtn" class="primary" disabled>下载 JPG ZIP</button>
+            <p id="pdfToJpgStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+        </section>
       </section>
     </main>
 

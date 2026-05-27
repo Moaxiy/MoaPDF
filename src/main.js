@@ -1,6 +1,7 @@
 import { PDFDocument, PDFHexString, PDFName, PDFNumber } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+import JSZip from "jszip";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -24,6 +25,31 @@ const mergeDownloadBtn = document.querySelector("#mergeDownloadBtn");
 const mergeClearBtn = document.querySelector("#mergeClearBtn");
 const splitRangeInput = document.querySelector("#splitRangeInput");
 const splitDownloadBtn = document.querySelector("#splitDownloadBtn");
+const navTabs = document.querySelectorAll(".nav-tab");
+const appPages = document.querySelectorAll(".app-page");
+const imageToPdfInput = document.querySelector("#imageToPdfInput");
+const imageToPdfBtn = document.querySelector("#imageToPdfBtn");
+const imageToPdfStatus = document.querySelector("#imageToPdfStatus");
+const pdfToImagesInput = document.querySelector("#pdfToImagesInput");
+const pdfToImagesBtn = document.querySelector("#pdfToImagesBtn");
+const pdfToImagesStatus = document.querySelector("#pdfToImagesStatus");
+const textToPdfInput = document.querySelector("#textToPdfInput");
+const textToPdfBtn = document.querySelector("#textToPdfBtn");
+const textToPdfStatus = document.querySelector("#textToPdfStatus");
+const compressPdfInput = document.querySelector("#compressPdfInput");
+const compressPdfBtn = document.querySelector("#compressPdfBtn");
+const compressPdfStatus = document.querySelector("#compressPdfStatus");
+const compressModeSelect = document.querySelector("#compressModeSelect");
+const compressQualityInput = document.querySelector("#compressQualityInput");
+const compressScaleInput = document.querySelector("#compressScaleInput");
+const compressGrayscaleInput = document.querySelector("#compressGrayscaleInput");
+const pdfToTextInput = document.querySelector("#pdfToTextInput");
+const pdfToTextBtn = document.querySelector("#pdfToTextBtn");
+const pdfToTextStatus = document.querySelector("#pdfToTextStatus");
+const pdfToJpgInput = document.querySelector("#pdfToJpgInput");
+const pdfToJpgBtn = document.querySelector("#pdfToJpgBtn");
+const pdfToJpgStatus = document.querySelector("#pdfToJpgStatus");
+const jpgQualityInput = document.querySelector("#jpgQualityInput");
 
 const state = {
   file: null,
@@ -34,6 +60,12 @@ const state = {
   insertions: new Map(),
   deletedPages: new Set(),
   mergeFiles: [],
+  imageFiles: [],
+  pdfToImagesFile: null,
+  textFile: null,
+  compressFile: null,
+  pdfToTextFile: null,
+  pdfToJpgFile: null,
 };
 
 function activeBlankPages() {
@@ -347,8 +379,8 @@ async function buildOutputPdf() {
   return outputPdf.save();
 }
 
-function downloadBytes(bytes, filename) {
-  const blob = new Blob([bytes], { type: "application/pdf" });
+function downloadBytes(bytes, filename, type = "application/pdf") {
+  const blob = new Blob([bytes], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
@@ -357,6 +389,296 @@ function downloadBytes(bytes, filename) {
   link.click();
 
   URL.revokeObjectURL(url);
+}
+
+function switchPage(targetId) {
+  appPages.forEach((page) => {
+    page.hidden = page.id !== targetId;
+    page.classList.toggle("is-active", page.id === targetId);
+  });
+
+  navTabs.forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.pageTarget === targetId);
+  });
+}
+
+function getFileBaseName(file) {
+  return file.name.replace(/\.[^.]+$/, "");
+}
+
+function canvasToBlob(canvas, type = "image/png", quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("图片导出失败"));
+      }
+    }, type, quality);
+  });
+}
+
+async function convertImageToPngBytes(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext("2d");
+  context.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await canvasToBlob(canvas, "image/png");
+  return blob.arrayBuffer();
+}
+
+async function embedImage(pdf, file) {
+  const bytes = await file.arrayBuffer();
+  if (file.type === "image/jpeg" || /\.(jpe?g)$/i.test(file.name)) {
+    return pdf.embedJpg(bytes);
+  }
+  if (file.type === "image/png" || /\.png$/i.test(file.name)) {
+    return pdf.embedPng(bytes);
+  }
+  const pngBytes = await convertImageToPngBytes(file);
+  return pdf.embedPng(pngBytes);
+}
+
+async function buildImagesPdf(files) {
+  const outputPdf = await PDFDocument.create();
+
+  for (const file of files) {
+    const image = await embedImage(outputPdf, file);
+    const page = outputPdf.addPage([image.width, image.height]);
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: image.width,
+      height: image.height,
+    });
+  }
+
+  return outputPdf.save();
+}
+
+async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl) {
+  const bytes = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+  const zip = new JSZip();
+  const baseName = getFileBaseName(file);
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    statusEl.textContent = `正在渲染第 ${pageNumber}/${pdf.numPages} 页...`;
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    const blob = await canvasToBlob(canvas, imageType, quality);
+    zip.file(`${baseName}-page-${String(pageNumber).padStart(3, "0")}.${extension}`, blob);
+  }
+
+  return zip.generateAsync({ type: "uint8array" });
+}
+
+async function buildPdfText(file) {
+  const bytes = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    pdfToTextStatus.textContent = `正在提取第 ${pageNumber}/${pdf.numPages} 页...`;
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item) => item.str)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    pages.push(`--- Page ${pageNumber} ---\n${pageText}`);
+  }
+
+  const text = pages.join("\n\n");
+  return new TextEncoder().encode(text || "");
+}
+
+function wrapCanvasText(context, text, maxWidth) {
+  const lines = [];
+  const paragraphs = text.replace(/\r\n/g, "\n").split("\n");
+
+  for (const paragraph of paragraphs) {
+    if (!paragraph.trim()) {
+      lines.push("");
+      continue;
+    }
+
+    let line = "";
+    for (const char of paragraph) {
+      const nextLine = `${line}${char}`;
+      if (context.measureText(nextLine).width > maxWidth && line) {
+        lines.push(line);
+        line = char;
+      } else {
+        line = nextLine;
+      }
+    }
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+async function addTextCanvasPage(outputPdf, lines, start, linesPerPage) {
+  const canvas = document.createElement("canvas");
+  const width = 1240;
+  const height = 1754;
+  const margin = 112;
+  const lineHeight = 38;
+  const context = canvas.getContext("2d");
+
+  canvas.width = width;
+  canvas.height = height;
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "#1f2933";
+  context.font = "28px 'Segoe UI', 'Microsoft YaHei', sans-serif";
+  context.textBaseline = "top";
+
+  for (let index = 0; index < linesPerPage; index += 1) {
+    const line = lines[start + index];
+    if (line === undefined) break;
+    context.fillText(line || " ", margin, margin + index * lineHeight);
+  }
+
+  const blob = await canvasToBlob(canvas, "image/png");
+  const image = await outputPdf.embedPng(await blob.arrayBuffer());
+  const page = outputPdf.addPage([595.28, 841.89]);
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: 595.28,
+    height: 841.89,
+  });
+}
+
+async function buildTextPdf(file) {
+  const text = await file.text();
+  const measureCanvas = document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  context.font = "28px 'Segoe UI', 'Microsoft YaHei', sans-serif";
+
+  const lines = wrapCanvasText(context, text, 1016);
+  const outputPdf = await PDFDocument.create();
+  const linesPerPage = 40;
+
+  for (let start = 0; start < Math.max(lines.length, 1); start += linesPerPage) {
+    await addTextCanvasPage(outputPdf, lines, start, linesPerPage);
+  }
+
+  return outputPdf.save();
+}
+
+async function compressPdfFile(file) {
+  const bytes = await file.arrayBuffer();
+  const pdf = await PDFDocument.load(bytes);
+  return pdf.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+  });
+}
+
+const compressionPresets = {
+  lossless: { quality: 0.92, scale: 1.4, grayscale: false },
+  balanced: { quality: 0.72, scale: 1.15, grayscale: false },
+  strong: { quality: 0.58, scale: 0.95, grayscale: false },
+  extreme: { quality: 0.42, scale: 0.78, grayscale: true },
+};
+
+function applyCompressionPreset(mode) {
+  const preset = compressionPresets[mode] ?? compressionPresets.balanced;
+  compressQualityInput.value = String(preset.quality);
+  compressScaleInput.value = String(preset.scale);
+  compressGrayscaleInput.checked = preset.grayscale;
+}
+
+function applyGrayscale(context, width, height) {
+  const imageData = context.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const gray = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    data[index] = gray;
+    data[index + 1] = gray;
+    data[index + 2] = gray;
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
+async function compressPdfByRendering(file, options) {
+  const bytes = await file.arrayBuffer();
+  const sourcePdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+  const outputPdf = await PDFDocument.create();
+
+  for (let pageNumber = 1; pageNumber <= sourcePdf.numPages; pageNumber += 1) {
+    compressPdfStatus.textContent = `正在重绘压缩第 ${pageNumber}/${sourcePdf.numPages} 页...`;
+    const sourcePage = await sourcePdf.getPage(pageNumber);
+    const baseViewport = sourcePage.getViewport({ scale: 1 });
+    const viewport = sourcePage.getViewport({ scale: options.scale });
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await sourcePage.render({ canvasContext: context, viewport }).promise;
+
+    if (options.grayscale) {
+      applyGrayscale(context, canvas.width, canvas.height);
+    }
+
+    const jpgBlob = await canvasToBlob(canvas, "image/jpeg", options.quality);
+    const jpgImage = await outputPdf.embedJpg(await jpgBlob.arrayBuffer());
+    const page = outputPdf.addPage([baseViewport.width, baseViewport.height]);
+    page.drawImage(jpgImage, {
+      x: 0,
+      y: 0,
+      width: baseViewport.width,
+      height: baseViewport.height,
+    });
+  }
+
+  return outputPdf.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+  });
+}
+
+async function buildCompressedPdf(file) {
+  const mode = compressModeSelect.value;
+  const losslessBytes = await compressPdfFile(file);
+
+  if (mode === "lossless") {
+    return { bytes: losslessBytes, strategy: "无损优化" };
+  }
+
+  const renderedBytes = await compressPdfByRendering(file, {
+    quality: Number(compressQualityInput.value),
+    scale: Number(compressScaleInput.value),
+    grayscale: compressGrayscaleInput.checked,
+  });
+
+  if (renderedBytes.byteLength < losslessBytes.byteLength) {
+    return { bytes: renderedBytes, strategy: "重渲染强压" };
+  }
+
+  return { bytes: losslessBytes, strategy: "无损优化更小，已自动采用" };
 }
 
 async function readPdfPageCount(file) {
@@ -588,6 +910,188 @@ mergeClearBtn.addEventListener("click", () => {
   state.mergeFiles = [];
   mergeInput.value = "";
   renderMergeList();
+});
+
+navTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    switchPage(tab.dataset.pageTarget);
+  });
+});
+
+imageToPdfInput.addEventListener("change", (event) => {
+  state.imageFiles = [...event.target.files].filter((file) => file.type.startsWith("image/"));
+  imageToPdfBtn.disabled = state.imageFiles.length === 0;
+  imageToPdfStatus.textContent =
+    state.imageFiles.length === 0 ? "尚未选择图片" : `已选择 ${state.imageFiles.length} 张图片`;
+});
+
+imageToPdfBtn.addEventListener("click", async () => {
+  if (state.imageFiles.length === 0) return;
+
+  imageToPdfBtn.disabled = true;
+  imageToPdfBtn.textContent = "生成中...";
+
+  try {
+    const outputBytes = await buildImagesPdf(state.imageFiles);
+    downloadBytes(outputBytes, "images.pdf");
+    imageToPdfStatus.textContent = `已生成 ${state.imageFiles.length} 页 PDF`;
+  } catch (error) {
+    alert(`图片转 PDF 失败：${error.message}`);
+  } finally {
+    imageToPdfBtn.textContent = "下载图片 PDF";
+    imageToPdfBtn.disabled = state.imageFiles.length === 0;
+  }
+});
+
+pdfToImagesInput.addEventListener("change", (event) => {
+  state.pdfToImagesFile = event.target.files[0] ?? null;
+  pdfToImagesBtn.disabled = !state.pdfToImagesFile;
+  pdfToImagesStatus.textContent = state.pdfToImagesFile
+    ? `已选择 ${state.pdfToImagesFile.name}`
+    : "尚未选择 PDF";
+});
+
+pdfToImagesBtn.addEventListener("click", async () => {
+  if (!state.pdfToImagesFile) return;
+
+  pdfToImagesBtn.disabled = true;
+  pdfToImagesBtn.textContent = "转换中...";
+
+  try {
+    const zipBytes = await renderPdfPagesToZip(
+      state.pdfToImagesFile,
+      "image/png",
+      "png",
+      undefined,
+      pdfToImagesStatus,
+    );
+    downloadBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
+    pdfToImagesStatus.textContent = "图片 ZIP 已生成";
+  } catch (error) {
+    alert(`PDF 转图片失败：${error.message}`);
+  } finally {
+    pdfToImagesBtn.textContent = "下载图片 ZIP";
+    pdfToImagesBtn.disabled = !state.pdfToImagesFile;
+  }
+});
+
+textToPdfInput.addEventListener("change", (event) => {
+  state.textFile = event.target.files[0] ?? null;
+  textToPdfBtn.disabled = !state.textFile;
+  textToPdfStatus.textContent = state.textFile
+    ? `已选择 ${state.textFile.name}`
+    : "尚未选择文本文件";
+});
+
+textToPdfBtn.addEventListener("click", async () => {
+  if (!state.textFile) return;
+
+  textToPdfBtn.disabled = true;
+  textToPdfBtn.textContent = "生成中...";
+
+  try {
+    const outputBytes = await buildTextPdf(state.textFile);
+    downloadBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
+    textToPdfStatus.textContent = "文本 PDF 已生成";
+  } catch (error) {
+    alert(`文本转 PDF 失败：${error.message}`);
+  } finally {
+    textToPdfBtn.textContent = "下载文本 PDF";
+    textToPdfBtn.disabled = !state.textFile;
+  }
+});
+
+compressPdfInput.addEventListener("change", (event) => {
+  state.compressFile = event.target.files[0] ?? null;
+  compressPdfBtn.disabled = !state.compressFile;
+  compressPdfStatus.textContent = state.compressFile
+    ? `已选择 ${state.compressFile.name}，${(state.compressFile.size / 1024 / 1024).toFixed(2)} MB`
+    : "尚未选择 PDF";
+});
+
+compressModeSelect.addEventListener("change", () => {
+  applyCompressionPreset(compressModeSelect.value);
+});
+
+compressPdfBtn.addEventListener("click", async () => {
+  if (!state.compressFile) return;
+
+  compressPdfBtn.disabled = true;
+  compressPdfBtn.textContent = "压缩中...";
+
+  try {
+    const result = await buildCompressedPdf(state.compressFile);
+    const outputBytes = result.bytes;
+    const beforeSize = state.compressFile.size;
+    const afterSize = outputBytes.byteLength;
+    const ratio = ((1 - afterSize / beforeSize) * 100).toFixed(1);
+    downloadBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
+    compressPdfStatus.textContent = `${result.strategy}：${(beforeSize / 1024 / 1024).toFixed(2)} MB -> ${(afterSize / 1024 / 1024).toFixed(2)} MB，减少 ${ratio}%`;
+  } catch (error) {
+    alert(`PDF 压缩失败：${error.message}`);
+  } finally {
+    compressPdfBtn.textContent = "下载压缩 PDF";
+    compressPdfBtn.disabled = !state.compressFile;
+  }
+});
+
+pdfToTextInput.addEventListener("change", (event) => {
+  state.pdfToTextFile = event.target.files[0] ?? null;
+  pdfToTextBtn.disabled = !state.pdfToTextFile;
+  pdfToTextStatus.textContent = state.pdfToTextFile
+    ? `已选择 ${state.pdfToTextFile.name}`
+    : "尚未选择 PDF";
+});
+
+pdfToTextBtn.addEventListener("click", async () => {
+  if (!state.pdfToTextFile) return;
+
+  pdfToTextBtn.disabled = true;
+  pdfToTextBtn.textContent = "提取中...";
+
+  try {
+    const textBytes = await buildPdfText(state.pdfToTextFile);
+    downloadBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
+    pdfToTextStatus.textContent = "TXT 已生成";
+  } catch (error) {
+    alert(`PDF 转 TXT 失败：${error.message}`);
+  } finally {
+    pdfToTextBtn.textContent = "下载 TXT";
+    pdfToTextBtn.disabled = !state.pdfToTextFile;
+  }
+});
+
+pdfToJpgInput.addEventListener("change", (event) => {
+  state.pdfToJpgFile = event.target.files[0] ?? null;
+  pdfToJpgBtn.disabled = !state.pdfToJpgFile;
+  pdfToJpgStatus.textContent = state.pdfToJpgFile
+    ? `已选择 ${state.pdfToJpgFile.name}`
+    : "尚未选择 PDF";
+});
+
+pdfToJpgBtn.addEventListener("click", async () => {
+  if (!state.pdfToJpgFile) return;
+
+  pdfToJpgBtn.disabled = true;
+  pdfToJpgBtn.textContent = "转换中...";
+
+  try {
+    const quality = Number(jpgQualityInput.value);
+    const zipBytes = await renderPdfPagesToZip(
+      state.pdfToJpgFile,
+      "image/jpeg",
+      "jpg",
+      quality,
+      pdfToJpgStatus,
+    );
+    downloadBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
+    pdfToJpgStatus.textContent = `JPG ZIP 已生成，质量 ${(quality * 100).toFixed(0)}%`;
+  } catch (error) {
+    alert(`PDF 转 JPG 失败：${error.message}`);
+  } finally {
+    pdfToJpgBtn.textContent = "下载 JPG ZIP";
+    pdfToJpgBtn.disabled = !state.pdfToJpgFile;
+  }
 });
 
 renderPages();
