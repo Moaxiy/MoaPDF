@@ -391,6 +391,39 @@ function downloadBytes(bytes, filename, type = "application/pdf") {
   URL.revokeObjectURL(url);
 }
 
+function isTauriApp() {
+  return Boolean(window.__TAURI_INTERNALS__);
+}
+
+async function saveBytes(bytes, filename, type = "application/pdf") {
+  if (!isTauriApp()) {
+    downloadBytes(bytes, filename, type);
+    return;
+  }
+
+  const [{ save }, { writeFile }] = await Promise.all([
+    import("@tauri-apps/plugin-dialog"),
+    import("@tauri-apps/plugin-fs"),
+  ]);
+
+  const filePath = await save({
+    defaultPath: filename,
+    filters: [
+      {
+        name: type === "application/zip" ? "ZIP" : type.startsWith("text/") ? "Text" : "PDF / File",
+        extensions: [filename.includes(".") ? filename.split(".").pop() : ""].filter(Boolean),
+      },
+    ],
+  });
+
+  if (!filePath) {
+    return;
+  }
+
+  const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  await writeFile(filePath, data);
+}
+
 function switchPage(targetId) {
   const targetExists = [...appPages].some((page) => page.id === targetId);
   const nextTargetId = targetExists ? targetId : "editPage";
@@ -810,7 +843,7 @@ downloadBtn.addEventListener("click", async () => {
   try {
     const outputBytes = await buildOutputPdf();
     const baseName = state.file.name.replace(/\.pdf$/i, "");
-    downloadBytes(outputBytes, `${baseName}-with-blanks.pdf`);
+    await saveBytes(outputBytes, `${baseName}-with-blanks.pdf`);
   } catch (error) {
     alert(`生成 PDF 失败：${error.message}`);
   } finally {
@@ -883,7 +916,7 @@ splitDownloadBtn.addEventListener("click", async () => {
   try {
     const outputBytes = await buildSplitPdf();
     const baseName = state.file.name.replace(/\.pdf$/i, "");
-    downloadBytes(outputBytes, `${baseName}-split.pdf`);
+    await saveBytes(outputBytes, `${baseName}-split.pdf`);
   } catch (error) {
     alert(`拆分 PDF 失败：${error.message}`);
   } finally {
@@ -904,7 +937,7 @@ mergeDownloadBtn.addEventListener("click", async () => {
 
   try {
     const outputBytes = await buildMergedPdf();
-    downloadBytes(outputBytes, "merged.pdf");
+    await saveBytes(outputBytes, "merged.pdf");
   } catch (error) {
     alert(`合并 PDF 失败：${error.message}`);
   } finally {
@@ -944,7 +977,7 @@ imageToPdfBtn.addEventListener("click", async () => {
 
   try {
     const outputBytes = await buildImagesPdf(state.imageFiles);
-    downloadBytes(outputBytes, "images.pdf");
+    await saveBytes(outputBytes, "images.pdf");
     imageToPdfStatus.textContent = `已生成 ${state.imageFiles.length} 页 PDF`;
   } catch (error) {
     alert(`图片转 PDF 失败：${error.message}`);
@@ -976,7 +1009,7 @@ pdfToImagesBtn.addEventListener("click", async () => {
       undefined,
       pdfToImagesStatus,
     );
-    downloadBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
+    await saveBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
     pdfToImagesStatus.textContent = "图片 ZIP 已生成";
   } catch (error) {
     alert(`PDF 转图片失败：${error.message}`);
@@ -1002,7 +1035,7 @@ textToPdfBtn.addEventListener("click", async () => {
 
   try {
     const outputBytes = await buildTextPdf(state.textFile);
-    downloadBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
+    await saveBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
     textToPdfStatus.textContent = "文本 PDF 已生成";
   } catch (error) {
     alert(`文本转 PDF 失败：${error.message}`);
@@ -1036,7 +1069,7 @@ compressPdfBtn.addEventListener("click", async () => {
     const beforeSize = state.compressFile.size;
     const afterSize = outputBytes.byteLength;
     const ratio = ((1 - afterSize / beforeSize) * 100).toFixed(1);
-    downloadBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
+    await saveBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
     compressPdfStatus.textContent = `${result.strategy}：${(beforeSize / 1024 / 1024).toFixed(2)} MB -> ${(afterSize / 1024 / 1024).toFixed(2)} MB，减少 ${ratio}%`;
   } catch (error) {
     alert(`PDF 压缩失败：${error.message}`);
@@ -1062,7 +1095,7 @@ pdfToTextBtn.addEventListener("click", async () => {
 
   try {
     const textBytes = await buildPdfText(state.pdfToTextFile);
-    downloadBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
+    await saveBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
     pdfToTextStatus.textContent = "TXT 已生成";
   } catch (error) {
     alert(`PDF 转 TXT 失败：${error.message}`);
@@ -1095,7 +1128,7 @@ pdfToJpgBtn.addEventListener("click", async () => {
       quality,
       pdfToJpgStatus,
     );
-    downloadBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
+    await saveBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
     pdfToJpgStatus.textContent = `JPG ZIP 已生成，质量 ${(quality * 100).toFixed(0)}%`;
   } catch (error) {
     alert(`PDF 转 JPG 失败：${error.message}`);
