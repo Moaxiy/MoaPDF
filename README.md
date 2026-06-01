@@ -2,6 +2,8 @@
 
 MoaPDF is a local PDF toolkit for page insertion, page deletion, splitting, merging, image-to-PDF, PDF-to-image, PDF-to-TXT, TXT/Markdown-to-PDF, and PDF compression. All processing happens on your machine.
 
+Chinese version: [README.zh-CN.md](./README.zh-CN.md)
+
 ## Screenshots
 
 ![Page editor](docs/web-layout.png)
