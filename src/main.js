@@ -127,17 +127,30 @@ function getOutputSequence() {
   const beforeFirstCount = getInsertionCount(0);
 
   for (let blank = 0; blank < beforeFirstCount; blank += 1) {
-    sequence.push({ type: "blank", label: "首页前空白" });
+    sequence.push({
+      type: "blank",
+      label: "Blank before first page",
+      detail: "Inserted at the very beginning",
+    });
   }
 
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
     if (state.deletedPages.has(pageNumber)) continue;
 
-    sequence.push({ type: "page", label: `原 ${pageNumber}` });
+    sequence.push({
+      type: "page",
+      label: `Original page ${pageNumber}`,
+      detail: "Source PDF content",
+      sourcePage: pageNumber,
+    });
 
     const blanksHere = getInsertionCount(pageNumber);
     for (let blank = 0; blank < blanksHere; blank += 1) {
-      sequence.push({ type: "blank", label: `第 ${pageNumber} 页后空白` });
+      sequence.push({
+        type: "blank",
+        label: `Blank after page ${pageNumber}`,
+        detail: `Inserted right after page ${pageNumber}`,
+      });
     }
   }
 
@@ -156,10 +169,32 @@ function renderPreview() {
   previewEmpty.hidden = true;
 
   for (const [index, item] of sequence.entries()) {
-    const chip = document.createElement("span");
-    chip.className = `preview-chip ${item.type === "blank" ? "blank" : ""}`;
-    chip.textContent = `${index + 1}. ${item.label}`;
-    previewList.appendChild(chip);
+    const card = document.createElement("article");
+    card.className = `preview-card ${item.type === "blank" ? "blank" : ""}`;
+
+    if (item.type === "page") {
+      card.innerHTML = `
+        <div class="preview-card-media">
+          <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="${item.label} preview"></canvas>
+        </div>
+        <div class="preview-card-body">
+          <strong>${index + 1}. ${item.label}</strong>
+          <span>${item.detail}</span>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="preview-card-media">
+          <div class="blank-preview preview-blank" aria-hidden="true">Blank</div>
+        </div>
+        <div class="preview-card-body">
+          <strong>${index + 1}. ${item.label}</strong>
+          <span>${item.detail}</span>
+        </div>
+      `;
+    }
+
+    previewList.appendChild(card);
   }
 }
 
@@ -226,6 +261,38 @@ function makeRow(position) {
   return row;
 }
 
+function makeInsertedBlankRow(position, index) {
+  const row = document.createElement("article");
+  row.className = "page-row inserted-blank";
+  row.dataset.blankAfter = String(position);
+  row.dataset.blankIndex = String(index);
+
+  const label = position === 0 ? "首页前空白页" : `第 ${position} 页后空白页`;
+  const detail = position === 0 ? "会插入到输出 PDF 最前面" : `会紧跟在原始第 ${position} 页后`;
+
+  row.innerHTML = `
+    <div class="page-id">
+      <div class="blank-preview" aria-hidden="true">Blank</div>
+      <div>
+        <strong>${label}</strong>
+        <span>${detail}</span>
+      </div>
+    </div>
+    <div class="page-tools blank-tools">
+      <span>实时插入预览</span>
+      <button class="delete-blank" type="button">删除空白页</button>
+    </div>
+  `;
+
+  row.querySelector(".delete-blank").addEventListener("click", () => {
+    const nextCount = getInsertionCount(position) - 1;
+    setInsertionCount(position, nextCount);
+    renderPages();
+  });
+
+  return row;
+}
+
 async function renderThumbnail(pageNumber, canvas, token) {
   if (!state.previewPdf) return;
 
@@ -245,13 +312,14 @@ async function renderThumbnail(pageNumber, canvas, token) {
 
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   await page.render({ canvasContext: context, viewport }).promise;
+
 }
 
 function renderVisibleThumbnails() {
   if (!state.previewPdf) return;
 
   const token = state.renderToken;
-  const canvases = pageList.querySelectorAll(".page-thumb");
+  const canvases = document.querySelectorAll(".page-thumb[data-page]");
 
   for (const canvas of canvases) {
     const pageNumber = Number(canvas.dataset.page);
@@ -272,8 +340,18 @@ function renderPages() {
   }
 
   pageList.appendChild(makeRow(0));
+  for (let blank = 0; blank < getInsertionCount(0); blank += 1) {
+    pageList.appendChild(makeInsertedBlankRow(0, blank));
+  }
+
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
     pageList.appendChild(makeRow(pageNumber));
+
+    if (state.deletedPages.has(pageNumber)) continue;
+
+    for (let blank = 0; blank < getInsertionCount(pageNumber); blank += 1) {
+      pageList.appendChild(makeInsertedBlankRow(pageNumber, blank));
+    }
   }
 
   updateSummary();
