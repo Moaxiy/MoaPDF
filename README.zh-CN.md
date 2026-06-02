@@ -10,7 +10,7 @@ MoaPDF 是一款本地运行的 PDF 工具，支持空白页插入、页面删�
 
 ## 下载
 
-[MoaPDF v0.1.2 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.2/MoaPDF_0.1.2_x64-setup.exe)
+[MoaPDF v0.1.3 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.3/MoaPDF_0.1.3_x64-setup.exe)
 
 ## 功能
 

@@ -12,7 +12,7 @@ Chinese version: [README.zh-CN.md](./README.zh-CN.md)
 
 ## Download
 
-[MoaPDF v0.1.2 Windows installer](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.2/MoaPDF_0.1.2_x64-setup.exe)
+[MoaPDF v0.1.3 Windows installer](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.3/MoaPDF_0.1.3_x64-setup.exe)
 
 ## Features
 

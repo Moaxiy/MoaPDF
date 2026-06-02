@@ -1,4 +1,4 @@
-import { PDFDocument, PDFHexString, PDFName, PDFNumber } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import JSZip from "jszip";
@@ -14,8 +14,13 @@ const deletedCountEl = document.querySelector("#deletedCount");
 const outputCountEl = document.querySelector("#outputCount");
 const downloadBtn = document.querySelector("#downloadBtn");
 const resetBtn = document.querySelector("#resetBtn");
-const pageList = document.querySelector("#pageList");
-const emptyState = document.querySelector("#emptyState");
+const viewerMeta = document.querySelector("#viewerMeta");
+const viewerPrevBtn = document.querySelector("#viewerPrevBtn");
+const viewerNextBtn = document.querySelector("#viewerNextBtn");
+const viewerStage = document.querySelector("#viewerStage");
+const viewerEmpty = document.querySelector("#viewerEmpty");
+const viewerCanvas = document.querySelector("#viewerCanvas");
+const viewerBlank = document.querySelector("#viewerBlank");
 const previewList = document.querySelector("#previewList");
 const previewEmpty = document.querySelector("#previewEmpty");
 const mergeInput = document.querySelector("#mergeInput");
@@ -56,6 +61,7 @@ const state = {
   bytes: null,
   previewPdf: null,
   renderToken: 0,
+  selectedOutputIndex: 0,
   pageSizes: [],
   insertions: new Map(),
   deletedPages: new Set(),
@@ -69,7 +75,7 @@ const state = {
 };
 
 function activeBlankPages() {
-  let count = getInsertionCount(0);
+  let count = 0;
 
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
     if (!state.deletedPages.has(pageNumber)) {
@@ -101,11 +107,12 @@ function updateSummary() {
   const originalCount = state.pageSizes.length;
   const blankCount = activeBlankPages();
   const deletedCount = state.deletedPages.size;
+  const outputCount = originalCount - deletedCount + blankCount;
 
   originalCountEl.textContent = String(originalCount);
   blankCountEl.textContent = String(blankCount);
   deletedCountEl.textContent = String(deletedCount);
-  outputCountEl.textContent = String(originalCount - deletedCount + blankCount);
+  outputCountEl.textContent = String(outputCount);
   downloadBtn.disabled = !state.file || !hasPendingPageEdits();
   resetBtn.disabled = !state.file || !hasPendingPageEdits();
   splitDownloadBtn.disabled = !state.file || splitRangeInput.value.trim() === "";
@@ -117,30 +124,20 @@ function updateSummary() {
   }
 
   fileNameEl.textContent = state.file.name;
-  pageCountEl.textContent = `${originalCount} 页，已安排 ${blankCount} 张空白页，删除 ${deletedCount} 页`;
+  pageCountEl.textContent = `${outputCount} 页，已插入 ${blankCount} 张空白页，删除 ${deletedCount} 页`;
 }
 
 function getOutputSequence() {
   if (!state.file) return [];
 
   const sequence = [];
-  const beforeFirstCount = getInsertionCount(0);
-
-  for (let blank = 0; blank < beforeFirstCount; blank += 1) {
-    sequence.push({
-      type: "blank",
-      label: "Blank before first page",
-      detail: "Inserted at the very beginning",
-    });
-  }
 
   for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
     if (state.deletedPages.has(pageNumber)) continue;
 
     sequence.push({
       type: "page",
-      label: `Original page ${pageNumber}`,
-      detail: "Source PDF content",
+      detail: `原始第 ${pageNumber} 页`,
       sourcePage: pageNumber,
     });
 
@@ -148,8 +145,9 @@ function getOutputSequence() {
     for (let blank = 0; blank < blanksHere; blank += 1) {
       sequence.push({
         type: "blank",
-        label: `Blank after page ${pageNumber}`,
-        detail: `Inserted right after page ${pageNumber}`,
+        detail: `插入在原始第 ${pageNumber} 页后`,
+        afterPage: pageNumber,
+        blankIndex: blank,
       });
     }
   }
@@ -159,27 +157,46 @@ function getOutputSequence() {
 
 function renderPreview() {
   previewList.innerHTML = "";
+  const sequence = getOutputSequence();
 
-  if (!state.file) {
+  if (!state.file || sequence.length === 0) {
     previewEmpty.hidden = false;
+    if (state.file) {
+      previewEmpty.textContent = "当前没有可输出页面";
+    } else {
+      previewEmpty.textContent = "选择 PDF 后显示最终页序";
+    }
     return;
   }
 
-  const sequence = getOutputSequence();
   previewEmpty.hidden = true;
+  state.selectedOutputIndex = Math.min(state.selectedOutputIndex, sequence.length - 1);
 
   for (const [index, item] of sequence.entries()) {
+    const outputPageNumber = index + 1;
+    const isSelected = index === state.selectedOutputIndex;
     const card = document.createElement("article");
-    card.className = `preview-card ${item.type === "blank" ? "blank" : ""}`;
+    card.className = `preview-card ${item.type === "blank" ? "blank" : ""} ${isSelected ? "is-selected" : ""}`;
+    card.dataset.outputIndex = String(index);
+    card.tabIndex = 0;
 
     if (item.type === "page") {
+      const count = getInsertionCount(item.sourcePage);
       card.innerHTML = `
         <div class="preview-card-media">
-          <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="${item.label} preview"></canvas>
+          <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="第 ${outputPageNumber} 页预览"></canvas>
         </div>
         <div class="preview-card-body">
-          <strong>${index + 1}. ${item.label}</strong>
+          <strong>第 ${outputPageNumber} 页</strong>
           <span>${item.detail}</span>
+        </div>
+        <div class="preview-card-tools">
+          <button class="delete-page" type="button">删除页面</button>
+          <div class="stepper" aria-label="第 ${outputPageNumber} 页后空白页数量">
+            <button class="minus" type="button" title="减少空白页" ${count === 0 ? "disabled" : ""}>-</button>
+            <span>${count}</span>
+            <button class="plus" type="button" title="增加空白页">+</button>
+          </div>
         </div>
       `;
     } else {
@@ -188,109 +205,63 @@ function renderPreview() {
           <div class="blank-preview preview-blank" aria-hidden="true">Blank</div>
         </div>
         <div class="preview-card-body">
-          <strong>${index + 1}. ${item.label}</strong>
+          <strong>第 ${outputPageNumber} 页</strong>
           <span>${item.detail}</span>
         </div>
+        <div class="preview-card-tools">
+          <button class="delete-blank" type="button">删除空白页</button>
+        </div>
       `;
+    }
+
+    card.addEventListener("click", () => {
+      selectOutputIndex(index);
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectOutputIndex(index);
+      }
+    });
+
+    if (item.type === "page") {
+      card.querySelector(".minus").addEventListener("click", (event) => {
+        event.stopPropagation();
+        setInsertionCount(item.sourcePage, getInsertionCount(item.sourcePage) - 1);
+        renderPages();
+      });
+      card.querySelector(".plus").addEventListener("click", (event) => {
+        event.stopPropagation();
+        setInsertionCount(item.sourcePage, getInsertionCount(item.sourcePage) + 1);
+        renderPages();
+      });
+      card.querySelector(".delete-page").addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.deletedPages.add(item.sourcePage);
+        renderPages();
+      });
+    } else {
+      card.querySelector(".delete-blank").addEventListener("click", (event) => {
+        event.stopPropagation();
+        setInsertionCount(item.afterPage, getInsertionCount(item.afterPage) - 1);
+        renderPages();
+      });
     }
 
     previewList.appendChild(card);
   }
 }
 
-function makeRow(position) {
-  const row = document.createElement("article");
-  row.className = `page-row ${state.deletedPages.has(position) ? "is-deleted" : ""}`;
-  row.dataset.position = String(position);
-
-  const count = getInsertionCount(position);
-  const isDeleted = state.deletedPages.has(position);
-  const label = position === 0 ? "首页前" : `第 ${position} 页后`;
-  const detail =
-    position === 0
-      ? "输出 PDF 最前面"
-      : isDeleted
-        ? `原始第 ${position} 页将从输出中删除`
-        : `原始第 ${position} 页内容保持不变`;
-  const thumbnailMarkup =
-    position === 0
-      ? `<div class="blank-preview" aria-hidden="true">空白</div>`
-      : `<canvas class="page-thumb" data-page="${position}" aria-label="原始第 ${position} 页预览"></canvas>`;
-  const deleteButton =
-    position === 0
-      ? ""
-      : `<button class="delete-page" type="button">${isDeleted ? "恢复页面" : "删除页面"}</button>`;
-
-  row.innerHTML = `
-    <div class="page-id">
-      ${thumbnailMarkup}
-      <div>
-        <strong>${label}</strong>
-        <span>${detail}</span>
-      </div>
-    </div>
-    <div class="page-tools">
-      ${deleteButton}
-      <div class="stepper" aria-label="${label} 空白页数量">
-        <button class="minus" type="button" title="减少空白页" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
-        <span>${isDeleted ? "删" : count}</span>
-        <button class="plus" type="button" title="增加空白页" ${isDeleted ? "disabled" : ""}>+</button>
-      </div>
-    </div>
-  `;
-
-  row.querySelector(".minus").addEventListener("click", () => {
-    setInsertionCount(position, getInsertionCount(position) - 1);
-    renderPages();
-  });
-
-  row.querySelector(".plus").addEventListener("click", () => {
-    setInsertionCount(position, getInsertionCount(position) + 1);
-    renderPages();
-  });
-
-  row.querySelector(".delete-page")?.addEventListener("click", () => {
-    if (state.deletedPages.has(position)) {
-      state.deletedPages.delete(position);
-    } else {
-      state.deletedPages.add(position);
-    }
-    renderPages();
-  });
-
-  return row;
-}
-
-function makeInsertedBlankRow(position, index) {
-  const row = document.createElement("article");
-  row.className = "page-row inserted-blank";
-  row.dataset.blankAfter = String(position);
-  row.dataset.blankIndex = String(index);
-
-  const label = position === 0 ? "首页前空白页" : `第 ${position} 页后空白页`;
-  const detail = position === 0 ? "会插入到输出 PDF 最前面" : `会紧跟在原始第 ${position} 页后`;
-
-  row.innerHTML = `
-    <div class="page-id">
-      <div class="blank-preview" aria-hidden="true">Blank</div>
-      <div>
-        <strong>${label}</strong>
-        <span>${detail}</span>
-      </div>
-    </div>
-    <div class="page-tools blank-tools">
-      <span>实时插入预览</span>
-      <button class="delete-blank" type="button">删除空白页</button>
-    </div>
-  `;
-
-  row.querySelector(".delete-blank").addEventListener("click", () => {
-    const nextCount = getInsertionCount(position) - 1;
-    setInsertionCount(position, nextCount);
-    renderPages();
-  });
-
-  return row;
+function selectOutputIndex(index) {
+  const sequence = getOutputSequence();
+  if (sequence.length === 0) {
+    state.selectedOutputIndex = 0;
+  } else {
+    state.selectedOutputIndex = Math.max(0, Math.min(index, sequence.length - 1));
+  }
+  renderPreview();
+  renderViewer();
+  renderVisibleThumbnails();
 }
 
 async function renderThumbnail(pageNumber, canvas, token) {
@@ -329,33 +300,72 @@ function renderVisibleThumbnails() {
   }
 }
 
-function renderPages() {
-  pageList.innerHTML = "";
-  emptyState.hidden = Boolean(state.file);
+async function renderViewer() {
+  const sequence = getOutputSequence();
+  const token = state.renderToken;
+  const selectedItem = sequence[state.selectedOutputIndex];
 
-  if (!state.file) {
-    updateSummary();
-    renderPreview();
+  viewerPrevBtn.disabled = !state.file || state.selectedOutputIndex <= 0;
+  viewerNextBtn.disabled = !state.file || state.selectedOutputIndex >= sequence.length - 1;
+
+  if (!state.file || !selectedItem) {
+    viewerMeta.textContent = "点击右侧最终页序查看对应页面";
+    viewerEmpty.hidden = false;
+    viewerCanvas.hidden = true;
+    viewerBlank.hidden = true;
     return;
   }
 
-  pageList.appendChild(makeRow(0));
-  for (let blank = 0; blank < getInsertionCount(0); blank += 1) {
-    pageList.appendChild(makeInsertedBlankRow(0, blank));
+  const outputPageNumber = state.selectedOutputIndex + 1;
+  viewerEmpty.hidden = true;
+
+  if (selectedItem.type === "blank") {
+    viewerMeta.textContent = `第 ${outputPageNumber} 页 · 空白页`;
+    viewerCanvas.hidden = true;
+    viewerBlank.hidden = false;
+    return;
   }
 
-  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
-    pageList.appendChild(makeRow(pageNumber));
+  viewerMeta.textContent = `第 ${outputPageNumber} 页 · 原始第 ${selectedItem.sourcePage} 页`;
+  viewerBlank.hidden = true;
+  viewerCanvas.hidden = false;
 
-    if (state.deletedPages.has(pageNumber)) continue;
+  const page = await state.previewPdf.getPage(selectedItem.sourcePage);
+  if (token !== state.renderToken) return;
 
-    for (let blank = 0; blank < getInsertionCount(pageNumber); blank += 1) {
-      pageList.appendChild(makeInsertedBlankRow(pageNumber, blank));
-    }
+  const baseViewport = page.getViewport({ scale: 1 });
+  const stageRect = viewerStage.getBoundingClientRect();
+  const maxWidth = Math.max(stageRect.width - 48, 280);
+  const maxHeight = Math.max(stageRect.height - 48, 360);
+  const scale = Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height, 1.8);
+  const viewport = page.getViewport({ scale });
+  const pixelRatio = window.devicePixelRatio || 1;
+  const context = viewerCanvas.getContext("2d");
+
+  viewerCanvas.width = Math.floor(viewport.width * pixelRatio);
+  viewerCanvas.height = Math.floor(viewport.height * pixelRatio);
+  viewerCanvas.style.width = `${Math.floor(viewport.width)}px`;
+  viewerCanvas.style.height = `${Math.floor(viewport.height)}px`;
+
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, viewerCanvas.width, viewerCanvas.height);
+  await page.render({ canvasContext: context, viewport }).promise;
+}
+
+function renderPages() {
+  if (!state.file) {
+    updateSummary();
+    renderPreview();
+    renderViewer();
+    return;
   }
+
+  const sequence = getOutputSequence();
+  state.selectedOutputIndex = Math.min(state.selectedOutputIndex, Math.max(sequence.length - 1, 0));
 
   updateSummary();
   renderPreview();
+  renderViewer();
   renderVisibleThumbnails();
 }
 
@@ -369,6 +379,7 @@ async function loadPdf(file) {
   state.bytes = bytes;
   state.previewPdf = previewPdf;
   state.renderToken += 1;
+  state.selectedOutputIndex = 0;
   state.pageSizes = pdf.getPages().map((page) => page.getSize());
   state.insertions.clear();
   state.deletedPages.clear();
@@ -377,54 +388,8 @@ async function loadPdf(file) {
 }
 
 function addBlankPage(outputPdf, position) {
-  const fallbackSize = state.pageSizes[0];
-  const referenceSize = position === 0 ? fallbackSize : state.pageSizes[position - 1];
+  const referenceSize = state.pageSizes[position - 1] ?? state.pageSizes[0];
   outputPdf.addPage([referenceSize.width, referenceSize.height]);
-}
-
-function addLabelRange(outputPdf, outputIndex, labelSpec) {
-  const nums = outputPdf.__pageLabelNums;
-  nums.push(PDFNumber.of(outputIndex));
-  nums.push(outputPdf.context.obj(labelSpec));
-}
-
-function applyPageLabels(outputPdf) {
-  const nums = [];
-  outputPdf.__pageLabelNums = nums;
-
-  let outputIndex = 0;
-  const beforeFirstCount = getInsertionCount(0);
-
-  for (let blank = 0; blank < beforeFirstCount; blank += 1) {
-    addLabelRange(outputPdf, outputIndex, {
-      P: PDFHexString.fromText("空白"),
-    });
-    outputIndex += 1;
-  }
-
-  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
-    if (state.deletedPages.has(pageNumber)) continue;
-
-    addLabelRange(outputPdf, outputIndex, {
-      S: PDFName.of("D"),
-      St: PDFNumber.of(pageNumber),
-    });
-    outputIndex += 1;
-
-    const blanksHere = getInsertionCount(pageNumber);
-    for (let blank = 0; blank < blanksHere; blank += 1) {
-      addLabelRange(outputPdf, outputIndex, {
-        P: PDFHexString.fromText("空白"),
-      });
-      outputIndex += 1;
-    }
-  }
-
-  outputPdf.catalog.set(
-    PDFName.of("PageLabels"),
-    outputPdf.context.obj({ Nums: nums }),
-  );
-  delete outputPdf.__pageLabelNums;
 }
 
 async function buildOutputPdf() {
@@ -434,27 +399,36 @@ async function buildOutputPdf() {
   const outputCount = state.pageSizes.length - state.deletedPages.size + activeBlankPages();
 
   if (outputCount === 0) {
-    throw new Error("输出 PDF 至少需要保留一页或插入一张空白页");
+    throw new Error("输出 PDF 至少需要保留一页");
   }
 
-  for (let blank = 0; blank < getInsertionCount(0); blank += 1) {
-    addBlankPage(outputPdf, 0);
+  const keptPageIndexes = [];
+  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    const originalPageNumber = pageIndex + 1;
+    if (!state.deletedPages.has(originalPageNumber)) {
+      keptPageIndexes.push(pageIndex);
+    }
   }
+
+  const copiedPages = await outputPdf.copyPages(sourcePdf, keptPageIndexes);
+  let copiedPageIndex = 0;
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const originalPageNumber = pageIndex + 1;
     if (state.deletedPages.has(originalPageNumber)) continue;
 
-    const [copiedPage] = await outputPdf.copyPages(sourcePdf, [pageIndex]);
-    outputPdf.addPage(copiedPage);
+    outputPdf.addPage(copiedPages[copiedPageIndex]);
+    copiedPageIndex += 1;
 
     for (let blank = 0; blank < getInsertionCount(originalPageNumber); blank += 1) {
       addBlankPage(outputPdf, originalPageNumber);
     }
   }
 
-  applyPageLabels(outputPdf);
-  return outputPdf.save();
+  return outputPdf.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+  });
 }
 
 function downloadBytes(bytes, filename, type = "application/pdf") {
@@ -944,7 +918,16 @@ downloadBtn.addEventListener("click", async () => {
 resetBtn.addEventListener("click", () => {
   state.insertions.clear();
   state.deletedPages.clear();
+  state.selectedOutputIndex = 0;
   renderPages();
+});
+
+viewerPrevBtn.addEventListener("click", () => {
+  selectOutputIndex(state.selectedOutputIndex - 1);
+});
+
+viewerNextBtn.addEventListener("click", () => {
+  selectOutputIndex(state.selectedOutputIndex + 1);
 });
 
 function parsePageRanges(value, pageCount) {
