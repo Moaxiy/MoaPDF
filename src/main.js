@@ -14,13 +14,8 @@ const deletedCountEl = document.querySelector("#deletedCount");
 const outputCountEl = document.querySelector("#outputCount");
 const downloadBtn = document.querySelector("#downloadBtn");
 const resetBtn = document.querySelector("#resetBtn");
-const viewerMeta = document.querySelector("#viewerMeta");
-const viewerPrevBtn = document.querySelector("#viewerPrevBtn");
-const viewerNextBtn = document.querySelector("#viewerNextBtn");
-const viewerStage = document.querySelector("#viewerStage");
-const viewerEmpty = document.querySelector("#viewerEmpty");
-const viewerCanvas = document.querySelector("#viewerCanvas");
-const viewerBlank = document.querySelector("#viewerBlank");
+const pageList = document.querySelector("#pageList");
+const emptyState = document.querySelector("#emptyState");
 const previewList = document.querySelector("#previewList");
 const previewEmpty = document.querySelector("#previewEmpty");
 const mergeInput = document.querySelector("#mergeInput");
@@ -61,7 +56,6 @@ const state = {
   bytes: null,
   previewPdf: null,
   renderToken: 0,
-  selectedOutputIndex: 0,
   pageSizes: [],
   insertions: new Map(),
   deletedPages: new Set(),
@@ -170,18 +164,14 @@ function renderPreview() {
   }
 
   previewEmpty.hidden = true;
-  state.selectedOutputIndex = Math.min(state.selectedOutputIndex, sequence.length - 1);
 
   for (const [index, item] of sequence.entries()) {
     const outputPageNumber = index + 1;
-    const isSelected = index === state.selectedOutputIndex;
     const card = document.createElement("article");
-    card.className = `preview-card ${item.type === "blank" ? "blank" : ""} ${isSelected ? "is-selected" : ""}`;
+    card.className = `preview-card ${item.type === "blank" ? "blank" : ""}`;
     card.dataset.outputIndex = String(index);
-    card.tabIndex = 0;
 
     if (item.type === "page") {
-      const count = getInsertionCount(item.sourcePage);
       card.innerHTML = `
         <div class="preview-card-media">
           <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="第 ${outputPageNumber} 页预览"></canvas>
@@ -189,14 +179,6 @@ function renderPreview() {
         <div class="preview-card-body">
           <strong>第 ${outputPageNumber} 页</strong>
           <span>${item.detail}</span>
-        </div>
-        <div class="preview-card-tools">
-          <button class="delete-page" type="button">删除页面</button>
-          <div class="stepper" aria-label="第 ${outputPageNumber} 页后空白页数量">
-            <button class="minus" type="button" title="减少空白页" ${count === 0 ? "disabled" : ""}>-</button>
-            <span>${count}</span>
-            <button class="plus" type="button" title="增加空白页">+</button>
-          </div>
         </div>
       `;
     } else {
@@ -208,60 +190,86 @@ function renderPreview() {
           <strong>第 ${outputPageNumber} 页</strong>
           <span>${item.detail}</span>
         </div>
-        <div class="preview-card-tools">
-          <button class="delete-blank" type="button">删除空白页</button>
-        </div>
       `;
-    }
-
-    card.addEventListener("click", () => {
-      selectOutputIndex(index);
-    });
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        selectOutputIndex(index);
-      }
-    });
-
-    if (item.type === "page") {
-      card.querySelector(".minus").addEventListener("click", (event) => {
-        event.stopPropagation();
-        setInsertionCount(item.sourcePage, getInsertionCount(item.sourcePage) - 1);
-        renderPages();
-      });
-      card.querySelector(".plus").addEventListener("click", (event) => {
-        event.stopPropagation();
-        setInsertionCount(item.sourcePage, getInsertionCount(item.sourcePage) + 1);
-        renderPages();
-      });
-      card.querySelector(".delete-page").addEventListener("click", (event) => {
-        event.stopPropagation();
-        state.deletedPages.add(item.sourcePage);
-        renderPages();
-      });
-    } else {
-      card.querySelector(".delete-blank").addEventListener("click", (event) => {
-        event.stopPropagation();
-        setInsertionCount(item.afterPage, getInsertionCount(item.afterPage) - 1);
-        renderPages();
-      });
     }
 
     previewList.appendChild(card);
   }
 }
 
-function selectOutputIndex(index) {
-  const sequence = getOutputSequence();
-  if (sequence.length === 0) {
-    state.selectedOutputIndex = 0;
-  } else {
-    state.selectedOutputIndex = Math.max(0, Math.min(index, sequence.length - 1));
-  }
-  renderPreview();
-  renderViewer();
-  renderVisibleThumbnails();
+function makePageRow(pageNumber) {
+  const isDeleted = state.deletedPages.has(pageNumber);
+  const count = getInsertionCount(pageNumber);
+  const row = document.createElement("article");
+  row.className = `page-row ${isDeleted ? "is-deleted" : ""}`;
+  row.dataset.page = String(pageNumber);
+
+  row.innerHTML = `
+    <div class="page-id">
+      <canvas class="page-thumb" data-page="${pageNumber}" aria-label="原始第 ${pageNumber} 页预览"></canvas>
+      <div>
+        <strong>第 ${pageNumber} 页后</strong>
+        <span>${isDeleted ? `原始第 ${pageNumber} 页将从输出中删除` : `原始第 ${pageNumber} 页内容保持不变`}</span>
+      </div>
+    </div>
+    <div class="page-tools">
+      <button class="delete-page" type="button">${isDeleted ? "恢复页面" : "删除页面"}</button>
+      <div class="stepper" aria-label="第 ${pageNumber} 页后空白页数量">
+        <button class="minus" type="button" title="减少空白页" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
+        <span>${isDeleted ? "删" : count}</span>
+        <button class="plus" type="button" title="增加空白页" ${isDeleted ? "disabled" : ""}>+</button>
+      </div>
+    </div>
+  `;
+
+  row.querySelector(".minus").addEventListener("click", () => {
+    setInsertionCount(pageNumber, getInsertionCount(pageNumber) - 1);
+    renderPages();
+  });
+
+  row.querySelector(".plus").addEventListener("click", () => {
+    setInsertionCount(pageNumber, getInsertionCount(pageNumber) + 1);
+    renderPages();
+  });
+
+  row.querySelector(".delete-page").addEventListener("click", () => {
+    if (state.deletedPages.has(pageNumber)) {
+      state.deletedPages.delete(pageNumber);
+    } else {
+      state.deletedPages.add(pageNumber);
+    }
+    renderPages();
+  });
+
+  return row;
+}
+
+function makeInsertedBlankRow(pageNumber, index) {
+  const row = document.createElement("article");
+  row.className = "page-row inserted-blank";
+  row.dataset.blankAfter = String(pageNumber);
+  row.dataset.blankIndex = String(index);
+
+  row.innerHTML = `
+    <div class="page-id">
+      <div class="blank-preview" aria-hidden="true">Blank</div>
+      <div>
+        <strong>第 ${pageNumber} 页后空白页</strong>
+        <span>会紧跟在原始第 ${pageNumber} 页后</span>
+      </div>
+    </div>
+    <div class="page-tools blank-tools">
+      <span>实时插入预览</span>
+      <button class="delete-blank" type="button">删除空白页</button>
+    </div>
+  `;
+
+  row.querySelector(".delete-blank").addEventListener("click", () => {
+    setInsertionCount(pageNumber, getInsertionCount(pageNumber) - 1);
+    renderPages();
+  });
+
+  return row;
 }
 
 async function renderThumbnail(pageNumber, canvas, token) {
@@ -271,7 +279,10 @@ async function renderThumbnail(pageNumber, canvas, token) {
   if (token !== state.renderToken) return;
 
   const baseViewport = page.getViewport({ scale: 1 });
-  const scale = Math.min(180 / baseViewport.width, 230 / baseViewport.height);
+  const bounds = canvas.classList.contains("preview-thumb")
+    ? { width: 160, height: 220 }
+    : { width: 180, height: 230 };
+  const scale = Math.min(bounds.width / baseViewport.width, bounds.height / baseViewport.height);
   const viewport = page.getViewport({ scale });
   const pixelRatio = window.devicePixelRatio || 1;
   const context = canvas.getContext("2d");
@@ -300,72 +311,28 @@ function renderVisibleThumbnails() {
   }
 }
 
-async function renderViewer() {
-  const sequence = getOutputSequence();
-  const token = state.renderToken;
-  const selectedItem = sequence[state.selectedOutputIndex];
-
-  viewerPrevBtn.disabled = !state.file || state.selectedOutputIndex <= 0;
-  viewerNextBtn.disabled = !state.file || state.selectedOutputIndex >= sequence.length - 1;
-
-  if (!state.file || !selectedItem) {
-    viewerMeta.textContent = "点击右侧最终页序查看对应页面";
-    viewerEmpty.hidden = false;
-    viewerCanvas.hidden = true;
-    viewerBlank.hidden = true;
-    return;
-  }
-
-  const outputPageNumber = state.selectedOutputIndex + 1;
-  viewerEmpty.hidden = true;
-
-  if (selectedItem.type === "blank") {
-    viewerMeta.textContent = `第 ${outputPageNumber} 页 · 空白页`;
-    viewerCanvas.hidden = true;
-    viewerBlank.hidden = false;
-    return;
-  }
-
-  viewerMeta.textContent = `第 ${outputPageNumber} 页 · 原始第 ${selectedItem.sourcePage} 页`;
-  viewerBlank.hidden = true;
-  viewerCanvas.hidden = false;
-
-  const page = await state.previewPdf.getPage(selectedItem.sourcePage);
-  if (token !== state.renderToken) return;
-
-  const baseViewport = page.getViewport({ scale: 1 });
-  const stageRect = viewerStage.getBoundingClientRect();
-  const maxWidth = Math.max(stageRect.width - 48, 280);
-  const maxHeight = Math.max(stageRect.height - 48, 360);
-  const scale = Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height, 1.8);
-  const viewport = page.getViewport({ scale });
-  const pixelRatio = window.devicePixelRatio || 1;
-  const context = viewerCanvas.getContext("2d");
-
-  viewerCanvas.width = Math.floor(viewport.width * pixelRatio);
-  viewerCanvas.height = Math.floor(viewport.height * pixelRatio);
-  viewerCanvas.style.width = `${Math.floor(viewport.width)}px`;
-  viewerCanvas.style.height = `${Math.floor(viewport.height)}px`;
-
-  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  context.clearRect(0, 0, viewerCanvas.width, viewerCanvas.height);
-  await page.render({ canvasContext: context, viewport }).promise;
-}
-
 function renderPages() {
+  pageList.innerHTML = "";
+  emptyState.hidden = Boolean(state.file);
+
   if (!state.file) {
     updateSummary();
     renderPreview();
-    renderViewer();
     return;
   }
 
-  const sequence = getOutputSequence();
-  state.selectedOutputIndex = Math.min(state.selectedOutputIndex, Math.max(sequence.length - 1, 0));
+  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+    pageList.appendChild(makePageRow(pageNumber));
+
+    if (state.deletedPages.has(pageNumber)) continue;
+
+    for (let blank = 0; blank < getInsertionCount(pageNumber); blank += 1) {
+      pageList.appendChild(makeInsertedBlankRow(pageNumber, blank));
+    }
+  }
 
   updateSummary();
   renderPreview();
-  renderViewer();
   renderVisibleThumbnails();
 }
 
@@ -379,7 +346,6 @@ async function loadPdf(file) {
   state.bytes = bytes;
   state.previewPdf = previewPdf;
   state.renderToken += 1;
-  state.selectedOutputIndex = 0;
   state.pageSizes = pdf.getPages().map((page) => page.getSize());
   state.insertions.clear();
   state.deletedPages.clear();
@@ -918,16 +884,7 @@ downloadBtn.addEventListener("click", async () => {
 resetBtn.addEventListener("click", () => {
   state.insertions.clear();
   state.deletedPages.clear();
-  state.selectedOutputIndex = 0;
   renderPages();
-});
-
-viewerPrevBtn.addEventListener("click", () => {
-  selectOutputIndex(state.selectedOutputIndex - 1);
-});
-
-viewerNextBtn.addEventListener("click", () => {
-  selectOutputIndex(state.selectedOutputIndex + 1);
 });
 
 function parsePageRanges(value, pageCount) {

@@ -64,25 +64,18 @@
         </section>
 
         <section class="workspace">
-          <section class="viewer-panel" aria-label="PDF 查看">
+          <section class="pages-panel" aria-label="PDF 查看区">
             <div class="panel-head">
               <div>
-                <strong>PDF 查看</strong>
-                <span id="viewerMeta">点击右侧最终页序查看对应页面</span>
-              </div>
-              <div class="viewer-controls">
-                <button id="viewerPrevBtn" class="secondary" type="button" disabled>上一页</button>
-                <button id="viewerNextBtn" class="secondary" type="button" disabled>下一页</button>
+                <strong>PDF 查看区</strong>
+                <span>按原始页面展示，可直接删除页面或在页面后插入空白页</span>
               </div>
             </div>
-            <div class="viewer-stage" id="viewerStage">
-              <div class="viewer-empty" id="viewerEmpty">
-                <strong>选择一个 PDF 开始</strong>
-                <span>左侧查看当前页面，右侧同步显示最终输出页序。</span>
-              </div>
-              <canvas id="viewerCanvas" class="viewer-canvas" aria-label="当前 PDF 页面预览"></canvas>
-              <div class="viewer-blank" id="viewerBlank" hidden>Blank</div>
+            <div class="empty-state" id="emptyState">
+              <strong>选择一个 PDF 开始</strong>
+              <span>页面会按原始页码排列，每一页都可以单独添加空白页。</span>
             </div>
+            <div class="page-list" id="pageList"></div>
           </section>
 
           <section class="preview-panel" aria-label="最终页序预览">
