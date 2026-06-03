@@ -28,6 +28,7 @@ const splitDownloadBtn = document.querySelector("#splitDownloadBtn");
 const navTabs = document.querySelectorAll(".nav-tab");
 const appPages = document.querySelectorAll(".app-page");
 const imageToPdfInput = document.querySelector("#imageToPdfInput");
+const imageToPdfMergeInput = document.querySelector("#imageToPdfMergeInput");
 const imageToPdfBtn = document.querySelector("#imageToPdfBtn");
 const imageToPdfStatus = document.querySelector("#imageToPdfStatus");
 const pdfToImagesInput = document.querySelector("#pdfToImagesInput");
@@ -528,6 +529,37 @@ async function buildImagesPdf(files) {
   return outputPdf.save();
 }
 
+async function buildSingleImagePdf(file) {
+  return buildImagesPdf([file]);
+}
+
+function getUniqueZipFileName(baseName, usedNames) {
+  let fileName = `${baseName}.pdf`;
+  let suffix = 2;
+
+  while (usedNames.has(fileName)) {
+    fileName = `${baseName}-${suffix}.pdf`;
+    suffix += 1;
+  }
+
+  usedNames.add(fileName);
+  return fileName;
+}
+
+async function buildSeparateImagePdfsZip(files) {
+  const zip = new JSZip();
+  const usedNames = new Set();
+
+  for (const [index, file] of files.entries()) {
+    imageToPdfStatus.textContent = `正在生成第 ${index + 1}/${files.length} 个 PDF...`;
+    const pdfBytes = await buildSingleImagePdf(file);
+    const baseName = getFileBaseName(file) || `image-${index + 1}`;
+    zip.file(getUniqueZipFileName(baseName, usedNames), pdfBytes);
+  }
+
+  return zip.generateAsync({ type: "uint8array" });
+}
+
 async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl) {
   const bytes = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
@@ -991,12 +1023,49 @@ window.addEventListener("hashchange", () => {
   switchPage(window.location.hash.slice(1) || "editPage");
 });
 
+function updateImageToPdfControls() {
+  const count = state.imageFiles.length;
+  const mergeImages = imageToPdfMergeInput.checked;
+
+  imageToPdfBtn.disabled = count === 0;
+  imageToPdfBtn.textContent = getImageToPdfButtonText(count, mergeImages);
+
+  if (count === 0) {
+    imageToPdfStatus.textContent = "尚未选择图片";
+    return;
+  }
+
+  imageToPdfStatus.textContent = mergeImages
+    ? `已选择 ${count} 张图片，将合并为 1 个 PDF`
+    : count > 1
+      ? `已选择 ${count} 张图片，将分别生成 ${count} 个 PDF`
+      : "已选择 1 张图片，将生成 1 个 PDF";
+}
+
+function getImageToPdfButtonText(count, mergeImages) {
+  if (mergeImages) return "下载合并 PDF";
+  return count > 1 ? "下载独立 PDF ZIP" : "下载图片 PDF";
+}
+
 imageToPdfInput.addEventListener("change", (event) => {
   state.imageFiles = [...event.target.files].filter((file) => file.type.startsWith("image/"));
-  imageToPdfBtn.disabled = state.imageFiles.length === 0;
-  imageToPdfStatus.textContent =
-    state.imageFiles.length === 0 ? "尚未选择图片" : `已选择 ${state.imageFiles.length} 张图片`;
+  updateImageToPdfControls();
 });
+
+imageToPdfMergeInput.addEventListener("change", updateImageToPdfControls);
+
+async function saveSeparateImagePdfs(files) {
+  if (files.length === 1) {
+    const outputBytes = await buildSingleImagePdf(files[0]);
+    await saveBytes(outputBytes, `${getFileBaseName(files[0]) || "image"}.pdf`);
+    imageToPdfStatus.textContent = "已生成 1 个 PDF";
+    return;
+  }
+
+  const zipBytes = await buildSeparateImagePdfsZip(files);
+  await saveBytes(zipBytes, "image-pdfs.zip", "application/zip");
+  imageToPdfStatus.textContent = `已生成 ${files.length} 个独立 PDF，并打包为 ZIP`;
+}
 
 imageToPdfBtn.addEventListener("click", async () => {
   if (state.imageFiles.length === 0) return;
@@ -1005,14 +1074,18 @@ imageToPdfBtn.addEventListener("click", async () => {
   imageToPdfBtn.textContent = "生成中...";
 
   try {
-    const outputBytes = await buildImagesPdf(state.imageFiles);
-    await saveBytes(outputBytes, "images.pdf");
-    imageToPdfStatus.textContent = `已生成 ${state.imageFiles.length} 页 PDF`;
+    if (imageToPdfMergeInput.checked) {
+      const outputBytes = await buildImagesPdf(state.imageFiles);
+      await saveBytes(outputBytes, "images.pdf");
+      imageToPdfStatus.textContent = `已合并生成 1 个 PDF，共 ${state.imageFiles.length} 页`;
+    } else {
+      await saveSeparateImagePdfs(state.imageFiles);
+    }
   } catch (error) {
     alert(`图片转 PDF 失败：${getErrorMessage(error)}`);
   } finally {
-    imageToPdfBtn.textContent = "下载图片 PDF";
     imageToPdfBtn.disabled = state.imageFiles.length === 0;
+    imageToPdfBtn.textContent = getImageToPdfButtonText(state.imageFiles.length, imageToPdfMergeInput.checked);
   }
 });
 

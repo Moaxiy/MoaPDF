@@ -819,6 +819,22 @@ h1 {
   cursor: pointer;
 }
 
+.tool-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tool-mode input {
+  width: auto;
+  accent-color: var(--accent);
+}
+
 .quality-field,
 .compression-options {
   display: grid;

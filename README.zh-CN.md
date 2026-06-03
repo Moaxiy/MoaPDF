@@ -10,8 +10,8 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 下载
 
-- [Gitee 下载 MoaPDF v0.1.4 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.4/MoaPDF_0.1.4_x64-setup.exe)
-- [GitHub 下载 MoaPDF v0.1.4 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.4/MoaPDF_0.1.4_x64-setup.exe)
+- [Gitee 下载 MoaPDF v0.1.5 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.5/MoaPDF_0.1.5_x64-setup.exe)
+- [GitHub 下载 MoaPDF v0.1.5 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.5/MoaPDF_0.1.5_x64-setup.exe)
 
 ## 核心功能
 
@@ -21,7 +21,7 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 - 删除指定页面
 - 拆分 PDF
 - 合并多个 PDF
-- 图片转 PDF
+- 图片批量转 PDF
 - PDF 转 PNG / JPG
 - PDF 转 TXT
 - TXT / Markdown 转 PDF
@@ -29,10 +29,10 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 本次版本更新
 
-- 页面整理区改为左侧 PDF 查看区、右侧最终页序、底部辅助工具的布局
-- 最终页序固定两列展示，便于对照输出顺序
-- 最终页序缩略图改为等比例渲染，并放大显示
-- PDF 查看区增加独立滚动条，页面较多时浏览更稳定
+- 图片转 PDF 支持批量转换
+- 图片转 PDF 新增“合并为一个 PDF”选项
+- 取消合并时，多张图片会分别生成独立 PDF 并打包为 ZIP
+- 增加 `start-desktop.cmd`，可在项目根目录快速启动桌面端
 
 ## 技术栈
 
