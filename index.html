@@ -104,6 +104,16 @@
             <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
           </div>
 
+          <div class="duplex-tool" aria-label="章节正面校正">
+            <div>
+              <strong>章节正面校正</strong>
+              <span>输入章节开始页，自动补空白页，让章节首页落在双面打印正面</span>
+            </div>
+            <input id="duplexChapterInput" type="text" placeholder="例如 3, 7, 12" />
+            <button id="duplexAlignBtn" class="secondary" disabled>自动插入空白页</button>
+            <p id="duplexStatus" class="tool-note">按原始 PDF 页码填写，多个页码用逗号分隔。</p>
+          </div>
+
           <section class="merge-panel" aria-label="PDF 合并">
             <div class="merge-head">
               <div>

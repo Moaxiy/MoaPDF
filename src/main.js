@@ -25,6 +25,9 @@ const mergeDownloadBtn = document.querySelector("#mergeDownloadBtn");
 const mergeClearBtn = document.querySelector("#mergeClearBtn");
 const splitRangeInput = document.querySelector("#splitRangeInput");
 const splitDownloadBtn = document.querySelector("#splitDownloadBtn");
+const duplexChapterInput = document.querySelector("#duplexChapterInput");
+const duplexAlignBtn = document.querySelector("#duplexAlignBtn");
+const duplexStatus = document.querySelector("#duplexStatus");
 const navTabs = document.querySelectorAll(".nav-tab");
 const appPages = document.querySelectorAll(".app-page");
 const imageToPdfInput = document.querySelector("#imageToPdfInput");
@@ -111,6 +114,7 @@ function updateSummary() {
   downloadBtn.disabled = !state.file || !hasPendingPageEdits();
   resetBtn.disabled = !state.file || !hasPendingPageEdits();
   splitDownloadBtn.disabled = !state.file || splitRangeInput.value.trim() === "";
+  duplexAlignBtn.disabled = !state.file || duplexChapterInput.value.trim() === "";
 
   if (!state.file) {
     fileNameEl.textContent = "尚未选择";
@@ -919,6 +923,47 @@ resetBtn.addEventListener("click", () => {
   renderPages();
 });
 
+function findPreviousSourcePage(sequence, index) {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (sequence[cursor].type === "page") {
+      return sequence[cursor].sourcePage;
+    }
+  }
+
+  return null;
+}
+
+function alignChaptersToFront(chapterPages) {
+  let inserted = 0;
+  const skipped = [];
+  const sortedPages = [...chapterPages].sort((first, second) => first - second);
+
+  for (const chapterPage of sortedPages) {
+    const sequence = getOutputSequence();
+    const index = sequence.findIndex((item) => item.type === "page" && item.sourcePage === chapterPage);
+
+    if (index === -1) {
+      skipped.push(chapterPage);
+      continue;
+    }
+
+    const outputPageNumber = index + 1;
+    if (outputPageNumber % 2 === 1) continue;
+
+    const previousSourcePage = findPreviousSourcePage(sequence, index);
+    if (!previousSourcePage) {
+      skipped.push(chapterPage);
+      continue;
+    }
+
+    setInsertionCount(previousSourcePage, getInsertionCount(previousSourcePage) + 1);
+    inserted += 1;
+  }
+
+  renderPages();
+  return { inserted, skipped };
+}
+
 function parsePageRanges(value, pageCount) {
   const pages = [];
   const seen = new Set();
@@ -967,6 +1012,31 @@ async function buildSplitPdf() {
 }
 
 splitRangeInput.addEventListener("input", updateSummary);
+
+duplexChapterInput.addEventListener("input", () => {
+  updateSummary();
+  duplexStatus.textContent = duplexChapterInput.value.trim()
+    ? "点击后会按当前最终页序判断，并只插入必要的空白页。"
+    : "按原始 PDF 页码填写，多个页码用逗号分隔。";
+});
+
+duplexAlignBtn.addEventListener("click", () => {
+  if (!state.file) return;
+
+  try {
+    const chapterPages = parsePageRanges(duplexChapterInput.value, state.pageSizes.length);
+    const { inserted, skipped } = alignChaptersToFront(chapterPages);
+    const skippedText = skipped.length > 0 ? `，跳过 ${skipped.join(", ")} 页` : "";
+    duplexStatus.textContent =
+      inserted === 0
+        ? `无需插入空白页，章节开始页已在正面${skippedText}。`
+        : `已插入 ${inserted} 张空白页，章节开始页已调整到正面${skippedText}。`;
+  } catch (error) {
+    alert(`章节正面校正失败：${getErrorMessage(error)}`);
+  } finally {
+    updateSummary();
+  }
+});
 
 splitDownloadBtn.addEventListener("click", async () => {
   if (!state.file) return;
