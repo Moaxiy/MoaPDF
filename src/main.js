@@ -35,10 +35,16 @@ const batchBlankBtn = document.querySelector("#batchBlankBtn");
 const navTabs = document.querySelectorAll(".nav-tab");
 const appPages = document.querySelectorAll(".app-page");
 const imageToPdfInput = document.querySelector("#imageToPdfInput");
+const imageDropZone = document.querySelector("#imageDropZone");
 const imageToPdfMergeInput = document.querySelector("#imageToPdfMergeInput");
+const imageToPdfPageSize = document.querySelector("#imageToPdfPageSize");
+const imageToPdfMargin = document.querySelector("#imageToPdfMargin");
+const imageToPdfList = document.querySelector("#imageToPdfList");
+const imageToPdfClearBtn = document.querySelector("#imageToPdfClearBtn");
 const imageToPdfBtn = document.querySelector("#imageToPdfBtn");
 const imageToPdfStatus = document.querySelector("#imageToPdfStatus");
 const pdfToImagesInput = document.querySelector("#pdfToImagesInput");
+const pdfToImagesRangeInput = document.querySelector("#pdfToImagesRangeInput");
 const pdfToImagesBtn = document.querySelector("#pdfToImagesBtn");
 const pdfToImagesStatus = document.querySelector("#pdfToImagesStatus");
 const textToPdfInput = document.querySelector("#textToPdfInput");
@@ -65,6 +71,7 @@ const pdfToJpgBtn = document.querySelector("#pdfToJpgBtn");
 const pdfToJpgStatus = document.querySelector("#pdfToJpgStatus");
 const jpgQualityInput = document.querySelector("#jpgQualityInput");
 const recentFilesKey = "moapdf.recentFiles.v1";
+const a4PortraitSize = [595.28, 841.89];
 
 const state = {
   file: null,
@@ -669,25 +676,49 @@ async function embedImage(pdf, file) {
   return pdf.embedPng(pngBytes);
 }
 
-async function buildImagesPdf(files) {
+function getImageToPdfOptions() {
+  return {
+    pageSize: imageToPdfPageSize.value,
+    margin: Number(imageToPdfMargin.value),
+  };
+}
+
+function getImagePdfPageSize(image, options) {
+  if (options.pageSize === "a4-portrait") return a4PortraitSize;
+  if (options.pageSize === "a4-landscape") return [a4PortraitSize[1], a4PortraitSize[0]];
+  return [image.width + options.margin * 2, image.height + options.margin * 2];
+}
+
+function getFittedImageBox(image, pageWidth, pageHeight, margin) {
+  const maxWidth = Math.max(1, pageWidth - margin * 2);
+  const maxHeight = Math.max(1, pageHeight - margin * 2);
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+
+  return {
+    x: (pageWidth - width) / 2,
+    y: (pageHeight - height) / 2,
+    width,
+    height,
+  };
+}
+
+async function buildImagesPdf(files, options = getImageToPdfOptions()) {
   const outputPdf = await PDFDocument.create();
 
   for (const file of files) {
     const image = await embedImage(outputPdf, file);
-    const page = outputPdf.addPage([image.width, image.height]);
-    page.drawImage(image, {
-      x: 0,
-      y: 0,
-      width: image.width,
-      height: image.height,
-    });
+    const [pageWidth, pageHeight] = getImagePdfPageSize(image, options);
+    const page = outputPdf.addPage([pageWidth, pageHeight]);
+    page.drawImage(image, getFittedImageBox(image, pageWidth, pageHeight, options.margin));
   }
 
   return outputPdf.save();
 }
 
-async function buildSingleImagePdf(file) {
-  return buildImagesPdf([file]);
+async function buildSingleImagePdf(file, options) {
+  return buildImagesPdf([file], options);
 }
 
 function getUniqueZipFileName(baseName, usedNames) {
@@ -703,13 +734,13 @@ function getUniqueZipFileName(baseName, usedNames) {
   return fileName;
 }
 
-async function buildSeparateImagePdfsZip(files) {
+async function buildSeparateImagePdfsZip(files, options) {
   const zip = new JSZip();
   const usedNames = new Set();
 
   for (const [index, file] of files.entries()) {
     imageToPdfStatus.textContent = `正在生成第 ${index + 1}/${files.length} 个 PDF...`;
-    const pdfBytes = await buildSingleImagePdf(file);
+    const pdfBytes = await buildSingleImagePdf(file, options);
     const baseName = getFileBaseName(file) || `image-${index + 1}`;
     zip.file(getUniqueZipFileName(baseName, usedNames), pdfBytes);
   }
@@ -717,14 +748,15 @@ async function buildSeparateImagePdfsZip(files) {
   return zip.generateAsync({ type: "uint8array" });
 }
 
-async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl) {
+async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl, pageRange = "") {
   const bytes = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
   const zip = new JSZip();
   const baseName = getFileBaseName(file);
+  const pageNumbers = pageRange.trim() ? parsePageRanges(pageRange, pdf.numPages) : Array.from({ length: pdf.numPages }, (_, index) => index + 1);
 
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    statusEl.textContent = `正在渲染第 ${pageNumber}/${pdf.numPages} 页...`;
+  for (const [index, pageNumber] of pageNumbers.entries()) {
+    statusEl.textContent = `正在渲染第 ${index + 1}/${pageNumbers.length} 页...`;
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 2 });
     const canvas = document.createElement("canvas");
@@ -1312,8 +1344,10 @@ window.addEventListener("hashchange", () => {
 function updateImageToPdfControls() {
   const count = state.imageFiles.length;
   const mergeImages = imageToPdfMergeInput.checked;
+  const files = getOrderedImageFiles();
 
   imageToPdfBtn.disabled = count === 0;
+  imageToPdfClearBtn.disabled = count === 0;
   imageToPdfBtn.textContent = getImageToPdfButtonText(count, mergeImages);
 
   if (count === 0) {
@@ -1321,11 +1355,15 @@ function updateImageToPdfControls() {
     return;
   }
 
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+  const pageText = imageToPdfPageSize.selectedOptions[0]?.textContent ?? "当前尺寸";
+  const marginText = imageToPdfMargin.selectedOptions[0]?.textContent ?? "当前边距";
+
   imageToPdfStatus.textContent = mergeImages
-    ? `已选择 ${count} 张图片，将合并为 1 个 PDF`
+    ? `已选择 ${count} 张图片（${formatFileSize(totalSize)}），${pageText} / ${marginText}，将合并为 1 个 PDF`
     : count > 1
-      ? `已选择 ${count} 张图片，将分别生成 ${count} 个 PDF`
-      : "已选择 1 张图片，将生成 1 个 PDF";
+      ? `已选择 ${count} 张图片（${formatFileSize(totalSize)}），${pageText} / ${marginText}，将分别生成 ${count} 个 PDF`
+      : `已选择 1 张图片，${pageText} / ${marginText}，将生成 1 个 PDF`;
 }
 
 function getImageToPdfButtonText(count, mergeImages) {
@@ -1333,22 +1371,150 @@ function getImageToPdfButtonText(count, mergeImages) {
   return count > 1 ? "下载独立 PDF ZIP" : "下载图片 PDF";
 }
 
-imageToPdfInput.addEventListener("change", (event) => {
-  state.imageFiles = [...event.target.files].filter((file) => file.type.startsWith("image/"));
+function getImageFileItems(files) {
+  return files.map((file, index) => ({
+    id: `${Date.now()}-${index}-${file.name}-${file.size}`,
+    file,
+    previewUrl: URL.createObjectURL(file),
+  }));
+}
+
+function getOrderedImageFiles() {
+  return state.imageFiles.map((item) => item.file ?? item);
+}
+
+function addImageFiles(files) {
+  const imageFiles = [...files].filter((file) => file.type.startsWith("image/"));
+  if (imageFiles.length === 0) return;
+  state.imageFiles = [...state.imageFiles, ...getImageFileItems(imageFiles)];
+  renderImageToPdfList();
   updateImageToPdfControls();
+}
+
+function clearImageFiles() {
+  state.imageFiles.forEach((item) => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  });
+  state.imageFiles = [];
+  imageToPdfInput.value = "";
+  renderImageToPdfList();
+  updateImageToPdfControls();
+}
+
+function moveImageItem(index, direction) {
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= state.imageFiles.length) return;
+  const [item] = state.imageFiles.splice(index, 1);
+  state.imageFiles.splice(nextIndex, 0, item);
+  renderImageToPdfList();
+  updateImageToPdfControls();
+}
+
+function removeImageItem(index) {
+  const [item] = state.imageFiles.splice(index, 1);
+  if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  if (state.imageFiles.length === 0) {
+    imageToPdfInput.value = "";
+  }
+  renderImageToPdfList();
+  updateImageToPdfControls();
+}
+
+function renderImageToPdfList() {
+  imageToPdfList.innerHTML = "";
+
+  if (state.imageFiles.length === 0) {
+    imageToPdfList.hidden = true;
+    return;
+  }
+
+  imageToPdfList.hidden = false;
+  state.imageFiles.forEach((item, index) => {
+    const file = item.file ?? item;
+    const row = document.createElement("div");
+    row.className = "image-sort-row";
+    row.draggable = true;
+    row.dataset.index = String(index);
+    row.innerHTML = `
+      <span class="image-sort-order">${index + 1}</span>
+      <img class="image-sort-thumb" src="${item.previewUrl}" alt="" />
+      <div class="image-sort-info">
+        <strong title="${file.name}">${file.name}</strong>
+        <span>${formatFileSize(file.size)}</span>
+      </div>
+      <div class="image-sort-actions">
+        <button type="button" class="move-up" title="上移" ${index === 0 ? "disabled" : ""}>↑</button>
+        <button type="button" class="move-down" title="下移" ${index === state.imageFiles.length - 1 ? "disabled" : ""}>↓</button>
+        <button type="button" class="remove" title="移除">删除</button>
+      </div>
+    `;
+
+    row.addEventListener("dragstart", () => {
+      state.draggedImageIndex = index;
+    });
+
+    row.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      row.classList.add("is-drop-target");
+    });
+
+    row.addEventListener("dragleave", () => {
+      row.classList.remove("is-drop-target");
+    });
+
+    row.addEventListener("drop", (event) => {
+      event.preventDefault();
+      row.classList.remove("is-drop-target");
+      const fromIndex = state.draggedImageIndex;
+      if (fromIndex === undefined || fromIndex === index) return;
+      const [draggedItem] = state.imageFiles.splice(fromIndex, 1);
+      state.imageFiles.splice(index, 0, draggedItem);
+      state.draggedImageIndex = undefined;
+      renderImageToPdfList();
+      updateImageToPdfControls();
+    });
+
+    row.querySelector(".move-up").addEventListener("click", () => moveImageItem(index, -1));
+    row.querySelector(".move-down").addEventListener("click", () => moveImageItem(index, 1));
+    row.querySelector(".remove").addEventListener("click", () => removeImageItem(index));
+    imageToPdfList.appendChild(row);
+  });
+}
+
+imageToPdfInput.addEventListener("change", (event) => {
+  addImageFiles(event.target.files);
+  imageToPdfInput.value = "";
 });
 
 imageToPdfMergeInput.addEventListener("change", updateImageToPdfControls);
+imageToPdfPageSize.addEventListener("change", updateImageToPdfControls);
+imageToPdfMargin.addEventListener("change", updateImageToPdfControls);
+imageToPdfClearBtn.addEventListener("click", clearImageFiles);
 
-async function saveSeparateImagePdfs(files) {
+imageDropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  imageDropZone.classList.add("is-dragging");
+});
+
+imageDropZone.addEventListener("dragleave", () => {
+  imageDropZone.classList.remove("is-dragging");
+});
+
+imageDropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  imageDropZone.classList.remove("is-dragging");
+  addImageFiles(event.dataTransfer.files);
+});
+
+async function saveSeparateImagePdfs(files, options) {
   if (files.length === 1) {
-    const outputBytes = await buildSingleImagePdf(files[0]);
+    const outputBytes = await buildSingleImagePdf(files[0], options);
     await saveBytes(outputBytes, `${getFileBaseName(files[0]) || "image"}.pdf`);
     imageToPdfStatus.textContent = "已生成 1 个 PDF";
     return;
   }
 
-  const zipBytes = await buildSeparateImagePdfsZip(files);
+  const zipBytes = await buildSeparateImagePdfsZip(files, options);
   await saveBytes(zipBytes, "image-pdfs.zip", "application/zip");
   imageToPdfStatus.textContent = `已生成 ${files.length} 个独立 PDF，并打包为 ZIP`;
 }
@@ -1360,12 +1526,15 @@ imageToPdfBtn.addEventListener("click", async () => {
   imageToPdfBtn.textContent = "生成中...";
 
   try {
+    const files = getOrderedImageFiles();
+    const options = getImageToPdfOptions();
+
     if (imageToPdfMergeInput.checked) {
-      const outputBytes = await buildImagesPdf(state.imageFiles);
+      const outputBytes = await buildImagesPdf(files, options);
       await saveBytes(outputBytes, "images.pdf");
-      imageToPdfStatus.textContent = `已合并生成 1 个 PDF，共 ${state.imageFiles.length} 页`;
+      imageToPdfStatus.textContent = `已合并生成 1 个 PDF，共 ${files.length} 页`;
     } else {
-      await saveSeparateImagePdfs(state.imageFiles);
+      await saveSeparateImagePdfs(files, options);
     }
   } catch (error) {
     alert(`图片转 PDF 失败：${getErrorMessage(error)}`);
@@ -1383,6 +1552,13 @@ pdfToImagesInput.addEventListener("change", (event) => {
     : "尚未选择 PDF";
 });
 
+pdfToImagesRangeInput.addEventListener("input", () => {
+  if (!state.pdfToImagesFile) return;
+  pdfToImagesStatus.textContent = pdfToImagesRangeInput.value.trim()
+    ? `已选择 ${state.pdfToImagesFile.name}，将按页码范围导出`
+    : `已选择 ${state.pdfToImagesFile.name}`;
+});
+
 pdfToImagesBtn.addEventListener("click", async () => {
   if (!state.pdfToImagesFile) return;
 
@@ -1396,6 +1572,7 @@ pdfToImagesBtn.addEventListener("click", async () => {
       "png",
       undefined,
       pdfToImagesStatus,
+      pdfToImagesRangeInput.value,
     );
     await saveBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
     pdfToImagesStatus.textContent = "图片 ZIP 已生成";

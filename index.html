@@ -129,14 +129,35 @@
                 <p>支持 PNG、JPG、WebP，多张图片按选择顺序生成 PDF。</p>
               </div>
             </div>
-            <label class="tool-drop">
+            <label class="tool-drop image-drop-zone" id="imageDropZone">
               <input id="imageToPdfInput" type="file" accept="image/png,image/jpeg,image/webp" multiple />
-              <span>选择图片</span>
+              <span>选择或拖入图片</span>
             </label>
             <label class="check-row tool-mode">
               <input id="imageToPdfMergeInput" type="checkbox" checked />
               <span>合并为一个 PDF</span>
             </label>
+            <div class="image-pdf-options" aria-label="图片转 PDF 页面设置">
+              <label>
+                <span>页面尺寸</span>
+                <select id="imageToPdfPageSize">
+                  <option value="original">原图尺寸</option>
+                  <option value="a4-portrait">A4 竖版</option>
+                  <option value="a4-landscape">A4 横版</option>
+                </select>
+              </label>
+              <label>
+                <span>页面边距</span>
+                <select id="imageToPdfMargin">
+                  <option value="0">无边距</option>
+                  <option value="18">窄边距</option>
+                  <option value="36" selected>标准边距</option>
+                  <option value="54">宽边距</option>
+                </select>
+              </label>
+            </div>
+            <div class="image-sort-list" id="imageToPdfList" aria-label="图片排序列表"></div>
+            <button id="imageToPdfClearBtn" class="secondary" type="button" disabled>清空图片</button>
             <button id="imageToPdfBtn" class="primary" disabled>下载图片 PDF</button>
             <p id="imageToPdfStatus" class="tool-status">尚未选择图片</p>
           </article>
@@ -152,6 +173,10 @@
             <label class="tool-drop">
               <input id="pdfToImagesInput" type="file" accept="application/pdf" />
               <span>选择 PDF</span>
+            </label>
+            <label class="quality-field">
+              <span>导出页码</span>
+              <input id="pdfToImagesRangeInput" type="text" placeholder="留空导出全部，例如 1-3, 6" />
             </label>
             <button id="pdfToImagesBtn" class="primary" disabled>下载图片 ZIP</button>
             <p id="pdfToImagesStatus" class="tool-status">尚未选择 PDF</p>

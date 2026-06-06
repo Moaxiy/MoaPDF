@@ -895,6 +895,12 @@ h1 {
   cursor: pointer;
 }
 
+.tool-drop.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
 .tool-mode {
   display: flex;
   align-items: center;
@@ -909,6 +915,120 @@ h1 {
 .tool-mode input {
   width: auto;
   accent-color: var(--accent);
+}
+
+.image-pdf-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.image-pdf-options label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.image-pdf-options span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.image-pdf-options select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0 8px;
+}
+
+.image-sort-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.image-sort-list[hidden] {
+  display: none;
+}
+
+.image-sort-row {
+  display: grid;
+  grid-template-columns: 30px 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.image-sort-row.is-drop-target {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.image-sort-order {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.image-sort-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.image-sort-info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.image-sort-info strong,
+.image-sort-info span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-sort-info strong {
+  font-size: 13px;
+}
+
+.image-sort-info span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.image-sort-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.image-sort-actions button {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.image-sort-actions .remove {
+  color: var(--danger);
+  border-color: rgba(199, 68, 47, 0.45);
 }
 
 .quality-field,
