@@ -234,6 +234,27 @@
             </div>
             <button id="compressPdfBtn" class="primary" disabled>下载压缩 PDF</button>
             <p id="compressPdfStatus" class="tool-status">尚未选择 PDF</p>
+            <div id="compressEstimatePanel" class="compression-result is-empty" aria-live="polite">
+              <div>
+                <span>预计压缩后</span>
+                <strong id="compressEstimateSize">等待选择 PDF</strong>
+              </div>
+              <div class="compression-result-grid">
+                <span>
+                  <em id="compressOriginalSize">--</em>
+                  原始大小
+                </span>
+                <span>
+                  <em id="compressSavedSize">--</em>
+                  预计节省
+                </span>
+                <span>
+                  <em id="compressEstimateRatio">--</em>
+                  预计比例
+                </span>
+              </div>
+              <p id="compressEstimateHint">选择 PDF 后会根据当前压缩设置实时估算。</p>
+            </div>
           </article>
 
           <article class="convert-card">

@@ -891,6 +891,67 @@ h1 {
   width: auto;
 }
 
+.compression-result {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(47, 111, 237, 0.09), rgba(22, 163, 74, 0.08)),
+    var(--panel);
+}
+
+.compression-result > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.compression-result span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compression-result strong {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.compression-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.compression-result-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(20, 32, 54, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.compression-result-grid em {
+  overflow: hidden;
+  color: var(--ink);
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compression-result p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.compression-result.is-empty {
+  background: var(--panel-soft);
+}
+
 .tool-status {
   align-self: end;
 }

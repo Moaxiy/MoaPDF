@@ -47,6 +47,12 @@ const compressModeSelect = document.querySelector("#compressModeSelect");
 const compressQualityInput = document.querySelector("#compressQualityInput");
 const compressScaleInput = document.querySelector("#compressScaleInput");
 const compressGrayscaleInput = document.querySelector("#compressGrayscaleInput");
+const compressEstimatePanel = document.querySelector("#compressEstimatePanel");
+const compressEstimateSize = document.querySelector("#compressEstimateSize");
+const compressOriginalSize = document.querySelector("#compressOriginalSize");
+const compressSavedSize = document.querySelector("#compressSavedSize");
+const compressEstimateRatio = document.querySelector("#compressEstimateRatio");
+const compressEstimateHint = document.querySelector("#compressEstimateHint");
 const pdfToTextInput = document.querySelector("#pdfToTextInput");
 const pdfToTextBtn = document.querySelector("#pdfToTextBtn");
 const pdfToTextStatus = document.querySelector("#pdfToTextStatus");
@@ -703,11 +709,107 @@ const compressionPresets = {
   extreme: { quality: 0.42, scale: 0.78, grayscale: true },
 };
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "--";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function estimateCompressedSize(file, options) {
+  if (!file) return null;
+
+  if (options.mode === "lossless") {
+    const min = file.size * 0.88;
+    const max = file.size * 1.02;
+    return { min, max, method: "无损优化预估" };
+  }
+
+  const qualityWeight = options.quality / compressionPresets.balanced.quality;
+  const scaleWeight = Math.pow(options.scale / compressionPresets.balanced.scale, 1.8);
+  const grayscaleWeight = options.grayscale ? 0.82 : 1;
+  const baseWeightByMode = {
+    balanced: 0.62,
+    strong: 0.48,
+    extreme: 0.36,
+  };
+  const modeWeight = baseWeightByMode[options.mode] ?? baseWeightByMode.balanced;
+  const expectedRatio = clamp(modeWeight * qualityWeight * scaleWeight * grayscaleWeight, 0.12, 1.08);
+
+  return {
+    min: file.size * clamp(expectedRatio * 0.78, 0.08, 1.05),
+    max: file.size * clamp(expectedRatio * 1.22, 0.12, 1.18),
+    method: "重渲染压缩预估",
+  };
+}
+
+function getCompressionOptions() {
+  return {
+    mode: compressModeSelect.value,
+    quality: Number(compressQualityInput.value),
+    scale: Number(compressScaleInput.value),
+    grayscale: compressGrayscaleInput.checked,
+  };
+}
+
+function updateCompressionEstimate(actualResult = null) {
+  const file = state.compressFile;
+
+  if (!file) {
+    compressEstimatePanel.classList.add("is-empty");
+    compressEstimateSize.textContent = "等待选择 PDF";
+    compressOriginalSize.textContent = "--";
+    compressSavedSize.textContent = "--";
+    compressEstimateRatio.textContent = "--";
+    compressEstimateHint.textContent = "选择 PDF 后会根据当前压缩设置实时估算。";
+    return;
+  }
+
+  compressEstimatePanel.classList.remove("is-empty");
+  compressOriginalSize.textContent = formatFileSize(file.size);
+
+  if (actualResult) {
+    const savedBytes = Math.max(0, file.size - actualResult.size);
+    const ratio = file.size > 0 ? ((1 - actualResult.size / file.size) * 100).toFixed(1) : "0.0";
+    compressEstimateSize.textContent = formatFileSize(actualResult.size);
+    compressSavedSize.textContent = formatFileSize(savedBytes);
+    compressEstimateRatio.textContent = `${ratio}%`;
+    compressEstimateHint.textContent = `实际结果：${actualResult.strategy}`;
+    return;
+  }
+
+  const estimate = estimateCompressedSize(file, getCompressionOptions());
+  const middle = (estimate.min + estimate.max) / 2;
+  const savedBytes = Math.max(0, file.size - middle);
+  const ratio = file.size > 0 ? ((1 - middle / file.size) * 100).toFixed(0) : "0";
+  const sizeText =
+    Math.abs(estimate.max - estimate.min) < 1024
+      ? formatFileSize(middle)
+      : `${formatFileSize(estimate.min)} - ${formatFileSize(estimate.max)}`;
+
+  compressEstimateSize.textContent = sizeText;
+  compressSavedSize.textContent = formatFileSize(savedBytes);
+  compressEstimateRatio.textContent = `${ratio}%`;
+  compressEstimateHint.textContent = `${estimate.method}，实际结果会受 PDF 图片占比、字体和页面复杂度影响。`;
+}
+
 function applyCompressionPreset(mode) {
   const preset = compressionPresets[mode] ?? compressionPresets.balanced;
   compressQualityInput.value = String(preset.quality);
   compressScaleInput.value = String(preset.scale);
   compressGrayscaleInput.checked = preset.grayscale;
+  updateCompressionEstimate();
 }
 
 function applyGrayscale(context, width, height) {
@@ -1221,12 +1323,18 @@ compressPdfInput.addEventListener("change", (event) => {
   state.compressFile = event.target.files[0] ?? null;
   compressPdfBtn.disabled = !state.compressFile;
   compressPdfStatus.textContent = state.compressFile
-    ? `已选择 ${state.compressFile.name}，${(state.compressFile.size / 1024 / 1024).toFixed(2)} MB`
+    ? `已选择 ${state.compressFile.name}，${formatFileSize(state.compressFile.size)}`
     : "尚未选择 PDF";
+  updateCompressionEstimate();
 });
 
 compressModeSelect.addEventListener("change", () => {
   applyCompressionPreset(compressModeSelect.value);
+});
+
+[compressQualityInput, compressScaleInput, compressGrayscaleInput].forEach((control) => {
+  control.addEventListener("input", () => updateCompressionEstimate());
+  control.addEventListener("change", () => updateCompressionEstimate());
 });
 
 compressPdfBtn.addEventListener("click", async () => {
@@ -1242,7 +1350,8 @@ compressPdfBtn.addEventListener("click", async () => {
     const afterSize = outputBytes.byteLength;
     const ratio = ((1 - afterSize / beforeSize) * 100).toFixed(1);
     await saveBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
-    compressPdfStatus.textContent = `${result.strategy}：${(beforeSize / 1024 / 1024).toFixed(2)} MB -> ${(afterSize / 1024 / 1024).toFixed(2)} MB，减少 ${ratio}%`;
+    compressPdfStatus.textContent = `${result.strategy}：${formatFileSize(beforeSize)} -> ${formatFileSize(afterSize)}，减少 ${ratio}%`;
+    updateCompressionEstimate({ size: afterSize, strategy: result.strategy });
   } catch (error) {
     alert(`PDF 压缩失败：${getErrorMessage(error)}`);
   } finally {

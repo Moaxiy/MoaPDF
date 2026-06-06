@@ -10,8 +10,8 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 下载
 
-- [Gitee 下载 MoaPDF v0.1.6 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.6/MoaPDF_0.1.6_x64-setup.exe)
-- [GitHub 下载 MoaPDF v0.1.6 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.6/MoaPDF_0.1.6_x64-setup.exe)
+- [Gitee 下载 MoaPDF v0.1.7 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.7/MoaPDF_0.1.7_x64-setup.exe)
+- [GitHub 下载 MoaPDF v0.1.7 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.7/MoaPDF_0.1.7_x64-setup.exe)
 
 ## 核心功能
 
@@ -30,10 +30,10 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 本次版本更新
 
-- 新增章节正面校正功能
-- 输入章节开始页的原始 PDF 页码后，自动判断双面打印正反面
-- 只在章节首页会落到背面时插入空白页，避免手动计算页序
-- 插入结果会实时同步到 PDF 查看区和最终页序
+- PDF 压缩新增结果预估展示
+- 选择 PDF 和调整压缩设置时，实时显示预计压缩后大小
+- 预估区展示原始大小、预计节省和预计压缩比例
+- 压缩完成后会切换为真实压缩结果，便于对比压缩效果
 
 ## 技术栈
 
