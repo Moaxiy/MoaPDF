@@ -18,6 +18,7 @@ const pageList = document.querySelector("#pageList");
 const emptyState = document.querySelector("#emptyState");
 const previewList = document.querySelector("#previewList");
 const previewEmpty = document.querySelector("#previewEmpty");
+const recentFiles = document.querySelector("#recentFiles");
 const mergeInput = document.querySelector("#mergeInput");
 const mergeEmpty = document.querySelector("#mergeEmpty");
 const mergeList = document.querySelector("#mergeList");
@@ -25,9 +26,12 @@ const mergeDownloadBtn = document.querySelector("#mergeDownloadBtn");
 const mergeClearBtn = document.querySelector("#mergeClearBtn");
 const splitRangeInput = document.querySelector("#splitRangeInput");
 const splitDownloadBtn = document.querySelector("#splitDownloadBtn");
-const duplexChapterInput = document.querySelector("#duplexChapterInput");
-const duplexAlignBtn = document.querySelector("#duplexAlignBtn");
-const duplexStatus = document.querySelector("#duplexStatus");
+const selectionCount = document.querySelector("#selectionCount");
+const selectAllBtn = document.querySelector("#selectAllBtn");
+const clearSelectionBtn = document.querySelector("#clearSelectionBtn");
+const batchDeleteBtn = document.querySelector("#batchDeleteBtn");
+const batchRestoreBtn = document.querySelector("#batchRestoreBtn");
+const batchBlankBtn = document.querySelector("#batchBlankBtn");
 const navTabs = document.querySelectorAll(".nav-tab");
 const appPages = document.querySelectorAll(".app-page");
 const imageToPdfInput = document.querySelector("#imageToPdfInput");
@@ -60,6 +64,7 @@ const pdfToJpgInput = document.querySelector("#pdfToJpgInput");
 const pdfToJpgBtn = document.querySelector("#pdfToJpgBtn");
 const pdfToJpgStatus = document.querySelector("#pdfToJpgStatus");
 const jpgQualityInput = document.querySelector("#jpgQualityInput");
+const recentFilesKey = "moapdf.recentFiles.v1";
 
 const state = {
   file: null,
@@ -67,8 +72,11 @@ const state = {
   previewPdf: null,
   renderToken: 0,
   pageSizes: [],
+  pageOrder: [],
   insertions: new Map(),
   deletedPages: new Set(),
+  selectedPages: new Set(),
+  lastSelectedPage: null,
   mergeFiles: [],
   imageFiles: [],
   pdfToImagesFile: null,
@@ -102,16 +110,34 @@ function setInsertionCount(position, count) {
   state.insertions.set(position, count);
 }
 
+function hasCustomPageOrder() {
+  return state.pageOrder.some((pageNumber, index) => pageNumber !== index + 1);
+}
+
+function getOutputCount() {
+  return state.pageSizes.length - state.deletedPages.size + activeBlankPages();
+}
+
 function hasPendingPageEdits() {
-  const outputCount = state.pageSizes.length - state.deletedPages.size + activeBlankPages();
-  return outputCount > 0 && (activeBlankPages() > 0 || state.deletedPages.size > 0);
+  const outputCount = getOutputCount();
+  return outputCount > 0 && (activeBlankPages() > 0 || state.deletedPages.size > 0 || hasCustomPageOrder());
+}
+
+function updateSelectionControls() {
+  const selectedCount = state.selectedPages.size;
+  if (selectionCount) selectionCount.textContent = selectedCount > 0 ? `已选择 ${selectedCount} 页` : "未选择页面";
+  if (selectAllBtn) selectAllBtn.disabled = !state.file;
+  if (clearSelectionBtn) clearSelectionBtn.disabled = selectedCount === 0;
+  if (batchDeleteBtn) batchDeleteBtn.disabled = selectedCount === 0;
+  if (batchRestoreBtn) batchRestoreBtn.disabled = selectedCount === 0;
+  if (batchBlankBtn) batchBlankBtn.disabled = selectedCount === 0;
 }
 
 function updateSummary() {
   const originalCount = state.pageSizes.length;
   const blankCount = activeBlankPages();
   const deletedCount = state.deletedPages.size;
-  const outputCount = originalCount - deletedCount + blankCount;
+  const outputCount = getOutputCount();
 
   originalCountEl.textContent = String(originalCount);
   blankCountEl.textContent = String(blankCount);
@@ -120,7 +146,7 @@ function updateSummary() {
   downloadBtn.disabled = !state.file || !hasPendingPageEdits();
   resetBtn.disabled = !state.file || !hasPendingPageEdits();
   splitDownloadBtn.disabled = !state.file || splitRangeInput.value.trim() === "";
-  duplexAlignBtn.disabled = !state.file || duplexChapterInput.value.trim() === "";
+  updateSelectionControls();
 
   if (!state.file) {
     fileNameEl.textContent = "尚未选择";
@@ -137,7 +163,7 @@ function getOutputSequence() {
 
   const sequence = [];
 
-  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+  for (const pageNumber of state.pageOrder) {
     if (state.deletedPages.has(pageNumber)) continue;
 
     sequence.push({
@@ -161,6 +187,8 @@ function getOutputSequence() {
 }
 
 function renderPreview() {
+  if (!previewList || !previewEmpty) return;
+
   previewList.innerHTML = "";
   const sequence = getOutputSequence();
 
@@ -208,12 +236,43 @@ function renderPreview() {
   }
 }
 
+function movePageInOrder(pageNumber, direction) {
+  const index = state.pageOrder.indexOf(pageNumber);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= state.pageOrder.length) return;
+
+  const [item] = state.pageOrder.splice(index, 1);
+  state.pageOrder.splice(nextIndex, 0, item);
+  renderPages();
+}
+
+function togglePageSelection(pageNumber, extendRange = false) {
+  if (extendRange && state.lastSelectedPage) {
+    const startIndex = state.pageOrder.indexOf(state.lastSelectedPage);
+    const endIndex = state.pageOrder.indexOf(pageNumber);
+    if (startIndex >= 0 && endIndex >= 0) {
+      const [start, end] = [Math.min(startIndex, endIndex), Math.max(startIndex, endIndex)];
+      state.pageOrder.slice(start, end + 1).forEach((item) => state.selectedPages.add(item));
+    }
+  } else if (state.selectedPages.has(pageNumber)) {
+    state.selectedPages.delete(pageNumber);
+  } else {
+    state.selectedPages.add(pageNumber);
+  }
+
+  state.lastSelectedPage = pageNumber;
+  renderPages();
+}
+
 function makePageRow(pageNumber) {
   const isDeleted = state.deletedPages.has(pageNumber);
   const count = getInsertionCount(pageNumber);
+  const isSelected = state.selectedPages.has(pageNumber);
+  const orderIndex = state.pageOrder.indexOf(pageNumber);
   const row = document.createElement("article");
-  row.className = `page-row ${isDeleted ? "is-deleted" : ""}`;
+  row.className = `page-row ${isDeleted ? "is-deleted" : ""} ${isSelected ? "is-selected" : ""}`;
   row.dataset.page = String(pageNumber);
+  row.draggable = true;
 
   row.innerHTML = `
     <div class="page-id">
@@ -225,6 +284,10 @@ function makePageRow(pageNumber) {
     </div>
     <div class="page-tools">
       <button class="delete-page" type="button">${isDeleted ? "恢复页面" : "删除页面"}</button>
+      <div class="order-tools" aria-label="调整第 ${pageNumber} 页顺序">
+        <button class="move-up" type="button" title="上移页面" ${orderIndex <= 0 ? "disabled" : ""}>↑</button>
+        <button class="move-down" type="button" title="下移页面" ${orderIndex >= state.pageOrder.length - 1 ? "disabled" : ""}>↓</button>
+      </div>
       <div class="stepper" aria-label="第 ${pageNumber} 页后空白页数量">
         <button class="minus" type="button" title="减少空白页" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
         <span>${isDeleted ? "删" : count}</span>
@@ -232,6 +295,34 @@ function makePageRow(pageNumber) {
       </div>
     </div>
   `;
+
+  row.addEventListener("dragstart", (event) => {
+    state.draggedPage = pageNumber;
+    event.dataTransfer.effectAllowed = "move";
+  });
+
+  row.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    row.classList.add("is-drop-target");
+  });
+
+  row.addEventListener("dragleave", () => {
+    row.classList.remove("is-drop-target");
+  });
+
+  row.addEventListener("drop", (event) => {
+    event.preventDefault();
+    row.classList.remove("is-drop-target");
+    const draggedPage = state.draggedPage;
+    if (!draggedPage || draggedPage === pageNumber) return;
+    const fromIndex = state.pageOrder.indexOf(draggedPage);
+    const toIndex = state.pageOrder.indexOf(pageNumber);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [item] = state.pageOrder.splice(fromIndex, 1);
+    state.pageOrder.splice(toIndex, 0, item);
+    state.draggedPage = null;
+    renderPages();
+  });
 
   row.querySelector(".minus").addEventListener("click", () => {
     setInsertionCount(pageNumber, getInsertionCount(pageNumber) - 1);
@@ -241,6 +332,14 @@ function makePageRow(pageNumber) {
   row.querySelector(".plus").addEventListener("click", () => {
     setInsertionCount(pageNumber, getInsertionCount(pageNumber) + 1);
     renderPages();
+  });
+
+  row.querySelector(".move-up").addEventListener("click", () => {
+    movePageInOrder(pageNumber, -1);
+  });
+
+  row.querySelector(".move-down").addEventListener("click", () => {
+    movePageInOrder(pageNumber, 1);
   });
 
   row.querySelector(".delete-page").addEventListener("click", () => {
@@ -332,7 +431,7 @@ function renderPages() {
     return;
   }
 
-  for (let pageNumber = 1; pageNumber <= state.pageSizes.length; pageNumber += 1) {
+  for (const pageNumber of state.pageOrder) {
     pageList.appendChild(makePageRow(pageNumber));
 
     if (state.deletedPages.has(pageNumber)) continue;
@@ -358,8 +457,12 @@ async function loadPdf(file) {
   state.previewPdf = previewPdf;
   state.renderToken += 1;
   state.pageSizes = pdf.getPages().map((page) => page.getSize());
+  state.pageOrder = Array.from({ length: state.pageSizes.length }, (_, index) => index + 1);
   state.insertions.clear();
   state.deletedPages.clear();
+  state.selectedPages.clear();
+  state.lastSelectedPage = null;
+  saveRecentFile(file);
 
   renderPages();
 }
@@ -372,26 +475,23 @@ function addBlankPage(outputPdf, position) {
 async function buildOutputPdf() {
   const sourcePdf = await PDFDocument.load(state.bytes);
   const outputPdf = await PDFDocument.create();
-  const pageCount = sourcePdf.getPageCount();
-  const outputCount = state.pageSizes.length - state.deletedPages.size + activeBlankPages();
+  const outputCount = getOutputCount();
 
   if (outputCount === 0) {
     throw new Error("输出 PDF 至少需要保留一页");
   }
 
   const keptPageIndexes = [];
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    const originalPageNumber = pageIndex + 1;
+  for (const originalPageNumber of state.pageOrder) {
     if (!state.deletedPages.has(originalPageNumber)) {
-      keptPageIndexes.push(pageIndex);
+      keptPageIndexes.push(originalPageNumber - 1);
     }
   }
 
   const copiedPages = await outputPdf.copyPages(sourcePdf, keptPageIndexes);
   let copiedPageIndex = 0;
 
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    const originalPageNumber = pageIndex + 1;
+  for (const originalPageNumber of state.pageOrder) {
     if (state.deletedPages.has(originalPageNumber)) continue;
 
     outputPdf.addPage(copiedPages[copiedPageIndex]);
@@ -418,6 +518,53 @@ function downloadBytes(bytes, filename, type = "application/pdf") {
   link.click();
 
   URL.revokeObjectURL(url);
+}
+
+function readRecentFiles() {
+  try {
+    const raw = localStorage.getItem(recentFilesKey);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentFiles(files) {
+  localStorage.setItem(recentFilesKey, JSON.stringify(files.slice(0, 5)));
+}
+
+function saveRecentFile(file) {
+  const nextItem = {
+    name: file.name,
+    size: file.size,
+    time: new Date().toLocaleString("zh-CN", { hour12: false }),
+  };
+  const files = readRecentFiles().filter((item) => item.name !== file.name || item.size !== file.size);
+  writeRecentFiles([nextItem, ...files]);
+  renderRecentFiles();
+}
+
+function renderRecentFiles() {
+  const files = readRecentFiles();
+  if (files.length === 0) {
+    recentFiles.innerHTML = "";
+    return;
+  }
+
+  recentFiles.innerHTML = `
+    <span>最近处理</span>
+    <div>
+      ${files.map((file) => `<strong title="${file.name}">${file.name}</strong>`).join("")}
+    </div>
+  `;
+}
+
+function parseLoosePageList(value, pageCount) {
+  try {
+    return value.trim() ? parsePageRanges(value, pageCount) : [];
+  } catch {
+    return [];
+  }
 }
 
 function isTauriApp() {
@@ -782,6 +929,7 @@ function updateCompressionEstimate(actualResult = null) {
   if (actualResult) {
     const savedBytes = Math.max(0, file.size - actualResult.size);
     const ratio = file.size > 0 ? ((1 - actualResult.size / file.size) * 100).toFixed(1) : "0.0";
+    compressEstimatePanel.classList.add("has-actual");
     compressEstimateSize.textContent = formatFileSize(actualResult.size);
     compressSavedSize.textContent = formatFileSize(savedBytes);
     compressEstimateRatio.textContent = `${ratio}%`;
@@ -789,6 +937,7 @@ function updateCompressionEstimate(actualResult = null) {
     return;
   }
 
+  compressEstimatePanel.classList.remove("has-actual");
   const estimate = estimateCompressedSize(file, getCompressionOptions());
   const middle = (estimate.min + estimate.max) / 2;
   const savedBytes = Math.max(0, file.size - middle);
@@ -1022,49 +1171,39 @@ downloadBtn.addEventListener("click", async () => {
 resetBtn.addEventListener("click", () => {
   state.insertions.clear();
   state.deletedPages.clear();
+  state.selectedPages.clear();
+  state.pageOrder = Array.from({ length: state.pageSizes.length }, (_, index) => index + 1);
   renderPages();
 });
 
-function findPreviousSourcePage(sequence, index) {
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    if (sequence[cursor].type === "page") {
-      return sequence[cursor].sourcePage;
-    }
-  }
-
-  return null;
-}
-
-function alignChaptersToFront(chapterPages) {
-  let inserted = 0;
-  const skipped = [];
-  const sortedPages = [...chapterPages].sort((first, second) => first - second);
-
-  for (const chapterPage of sortedPages) {
-    const sequence = getOutputSequence();
-    const index = sequence.findIndex((item) => item.type === "page" && item.sourcePage === chapterPage);
-
-    if (index === -1) {
-      skipped.push(chapterPage);
-      continue;
-    }
-
-    const outputPageNumber = index + 1;
-    if (outputPageNumber % 2 === 1) continue;
-
-    const previousSourcePage = findPreviousSourcePage(sequence, index);
-    if (!previousSourcePage) {
-      skipped.push(chapterPage);
-      continue;
-    }
-
-    setInsertionCount(previousSourcePage, getInsertionCount(previousSourcePage) + 1);
-    inserted += 1;
-  }
-
+selectAllBtn?.addEventListener("click", () => {
+  state.pageOrder.forEach((pageNumber) => state.selectedPages.add(pageNumber));
   renderPages();
-  return { inserted, skipped };
-}
+});
+
+clearSelectionBtn?.addEventListener("click", () => {
+  state.selectedPages.clear();
+  renderPages();
+});
+
+batchDeleteBtn?.addEventListener("click", () => {
+  state.selectedPages.forEach((pageNumber) => state.deletedPages.add(pageNumber));
+  renderPages();
+});
+
+batchRestoreBtn?.addEventListener("click", () => {
+  state.selectedPages.forEach((pageNumber) => state.deletedPages.delete(pageNumber));
+  renderPages();
+});
+
+batchBlankBtn?.addEventListener("click", () => {
+  state.selectedPages.forEach((pageNumber) => {
+    if (!state.deletedPages.has(pageNumber)) {
+      setInsertionCount(pageNumber, getInsertionCount(pageNumber) + 1);
+    }
+  });
+  renderPages();
+});
 
 function parsePageRanges(value, pageCount) {
   const pages = [];
@@ -1114,31 +1253,6 @@ async function buildSplitPdf() {
 }
 
 splitRangeInput.addEventListener("input", updateSummary);
-
-duplexChapterInput.addEventListener("input", () => {
-  updateSummary();
-  duplexStatus.textContent = duplexChapterInput.value.trim()
-    ? "点击后会按当前最终页序判断，并只插入必要的空白页。"
-    : "按原始 PDF 页码填写，多个页码用逗号分隔。";
-});
-
-duplexAlignBtn.addEventListener("click", () => {
-  if (!state.file) return;
-
-  try {
-    const chapterPages = parsePageRanges(duplexChapterInput.value, state.pageSizes.length);
-    const { inserted, skipped } = alignChaptersToFront(chapterPages);
-    const skippedText = skipped.length > 0 ? `，跳过 ${skipped.join(", ")} 页` : "";
-    duplexStatus.textContent =
-      inserted === 0
-        ? `无需插入空白页，章节开始页已在正面${skippedText}。`
-        : `已插入 ${inserted} 张空白页，章节开始页已调整到正面${skippedText}。`;
-  } catch (error) {
-    alert(`章节正面校正失败：${getErrorMessage(error)}`);
-  } finally {
-    updateSummary();
-  }
-});
 
 splitDownloadBtn.addEventListener("click", async () => {
   if (!state.file) return;

@@ -61,16 +61,12 @@
             <button id="downloadBtn" class="primary" disabled>下载处理后 PDF</button>
             <button id="resetBtn" class="secondary" disabled>清空操作</button>
           </div>
+
+          <div class="recent-files" id="recentFiles" aria-label="最近处理文件"></div>
         </section>
 
         <section class="workspace">
-          <section class="pages-panel" aria-label="PDF 查看区">
-            <div class="panel-head">
-              <div>
-                <strong>PDF 查看区</strong>
-                <span>按原始页面展示，可直接删除页面或在页面后插入空白页</span>
-              </div>
-            </div>
+          <section class="pages-panel" aria-label="页面列表">
             <div class="empty-state" id="emptyState">
               <strong>选择一个 PDF 开始</strong>
               <span>页面会按原始页码排列，每一页都可以单独添加空白页。</span>
@@ -78,60 +74,40 @@
             <div class="page-list" id="pageList"></div>
           </section>
 
-          <section class="preview-panel" aria-label="最终页序预览">
-            <div class="preview-head">
+          <aside class="side-tools" aria-label="页面处理工具">
+            <div class="side-tools-head">
+              <strong>页面处理</strong>
+              <span>输入页码范围，快速导出指定页面</span>
+            </div>
+
+            <div class="split-tool" aria-label="拆分 PDF">
               <div>
-                <strong>最终页序</strong>
-                <span>添加空白页后，页码会实时顺延</span>
+                <strong>拆分 PDF</strong>
+                <span>输入页码范围导出新文件</span>
               </div>
+              <input id="splitRangeInput" type="text" placeholder="例如 1-3, 6, 9-12" />
+              <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
             </div>
-            <div class="preview-empty" id="previewEmpty">选择 PDF 后显示最终页序</div>
-            <div class="preview-list" id="previewList"></div>
-          </section>
-        </section>
 
-        <section class="utility-panel" aria-label="PDF 辅助工具">
-          <p class="hint">
-            插入空白页会立即同步到最终页序。拆分、合并是辅助工具，不再占用主要编排区域。
-          </p>
-
-          <div class="split-tool" aria-label="拆分 PDF">
-            <div>
-              <strong>拆分 PDF</strong>
-              <span>输入页码范围导出新文件</span>
-            </div>
-            <input id="splitRangeInput" type="text" placeholder="例如 1-3, 6, 9-12" />
-            <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
-          </div>
-
-          <div class="duplex-tool" aria-label="章节正面校正">
-            <div>
-              <strong>章节正面校正</strong>
-              <span>输入章节开始页，自动补空白页，让章节首页落在双面打印正面</span>
-            </div>
-            <input id="duplexChapterInput" type="text" placeholder="例如 3, 7, 12" />
-            <button id="duplexAlignBtn" class="secondary" disabled>自动插入空白页</button>
-            <p id="duplexStatus" class="tool-note">按原始 PDF 页码填写，多个页码用逗号分隔。</p>
-          </div>
-
-          <section class="merge-panel" aria-label="PDF 合并">
-            <div class="merge-head">
-              <div>
-                <strong>合并 PDF</strong>
-                <span>按列表顺序合并多个文件</span>
+            <section class="merge-panel" aria-label="PDF 合并">
+              <div class="merge-head">
+                <div>
+                  <strong>合并 PDF</strong>
+                  <span>按列表顺序合并多个文件</span>
+                </div>
+                <label class="file-picker merge-picker">
+                  <input id="mergeInput" type="file" accept="application/pdf" multiple />
+                  <span>选择多个</span>
+                </label>
               </div>
-              <label class="file-picker merge-picker">
-                <input id="mergeInput" type="file" accept="application/pdf" multiple />
-                <span>选择多个</span>
-              </label>
-            </div>
-            <div class="merge-empty" id="mergeEmpty">选择两个或更多 PDF 后开始合并</div>
-            <div class="merge-list" id="mergeList"></div>
-            <div class="merge-actions">
-              <button id="mergeDownloadBtn" class="primary" disabled>下载合并 PDF</button>
-              <button id="mergeClearBtn" class="secondary" disabled>清空列表</button>
-            </div>
-          </section>
+              <div class="merge-empty" id="mergeEmpty">选择两个或更多 PDF 后开始合并</div>
+              <div class="merge-list" id="mergeList"></div>
+              <div class="merge-actions">
+                <button id="mergeDownloadBtn" class="primary" disabled>下载合并 PDF</button>
+                <button id="mergeClearBtn" class="secondary" disabled>清空列表</button>
+              </div>
+            </section>
+          </aside>
         </section>
       </section>
 

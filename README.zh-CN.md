@@ -10,15 +10,16 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 下载
 
-- [Gitee 下载 MoaPDF v0.1.7 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.7/MoaPDF_0.1.7_x64-setup.exe)
-- [GitHub 下载 MoaPDF v0.1.7 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.7/MoaPDF_0.1.7_x64-setup.exe)
+- [Gitee 下载 MoaPDF v0.1.8 Windows 安装包](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.8/MoaPDF_0.1.8_x64-setup.exe)
+- [GitHub 下载 MoaPDF v0.1.8 Windows 安装包](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.8/MoaPDF_0.1.8_x64-setup.exe)
 
 ## 核心功能
 
 - 可视化整理 PDF 页面
 - 在指定页面后插入空白页
 - 插入空白页后最终页序实时同步
-- 章节正面校正，适合双面打印时让章节首页落在正面
+- 多选页面并批量删除、恢复、插入空白页
+- 调整页面顺序并按最终顺序导出
 - 删除指定页面
 - 拆分 PDF
 - 合并多个 PDF
@@ -30,10 +31,10 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 本次版本更新
 
-- PDF 压缩新增结果预估展示
-- 选择 PDF 和调整压缩设置时，实时显示预计压缩后大小
-- 预估区展示原始大小、预计节省和预计压缩比例
-- 压缩完成后会切换为真实压缩结果，便于对比压缩效果
+- 页面整理新增多选批量操作
+- 支持页面上移、下移和拖拽调整最终导出顺序
+- 新增最近处理文件记录，方便回看本地使用历史
+- 压缩完成后结果卡片会突出展示真实压缩效果
 
 ## 技术栈
 
