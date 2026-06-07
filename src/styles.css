@@ -1087,6 +1087,12 @@ h1 {
   padding: 3px;
 }
 
+.photo-resize-options .photo-auto-source {
+  min-height: 36px;
+  align-self: end;
+  background: var(--panel);
+}
+
 .photo-resize-options input[type="checkbox"] {
   width: auto;
   min-height: auto;
@@ -1130,6 +1136,7 @@ h1 {
   border: 1px solid rgba(20, 32, 54, 0.12);
   background: white;
   box-shadow: 0 10px 22px rgba(20, 32, 54, 0.12);
+  cursor: crosshair;
 }
 
 .compression-options label {

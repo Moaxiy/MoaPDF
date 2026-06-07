@@ -74,7 +74,9 @@ const photoResizeInput = document.querySelector("#photoResizeInput");
 const photoResizeWidthInput = document.querySelector("#photoResizeWidthInput");
 const photoResizeHeightInput = document.querySelector("#photoResizeHeightInput");
 const photoResizeBgInput = document.querySelector("#photoResizeBgInput");
+const photoResizeSourceBgInput = document.querySelector("#photoResizeSourceBgInput");
 const photoResizeFitSelect = document.querySelector("#photoResizeFitSelect");
+const photoResizeAutoSourceBtn = document.querySelector("#photoResizeAutoSourceBtn");
 const photoResizeReplaceBgInput = document.querySelector("#photoResizeReplaceBgInput");
 const photoResizeToleranceInput = document.querySelector("#photoResizeToleranceInput");
 const photoResizeCanvas = document.querySelector("#photoResizeCanvas");
@@ -103,6 +105,7 @@ const state = {
   pdfToJpgFile: null,
   photoResizeFile: null,
   photoResizeBitmap: null,
+  photoResizeDrawBox: null,
 };
 
 function activeBlankPages() {
@@ -675,6 +678,7 @@ function getPhotoResizeSettings() {
     width: clampPhotoDimension(photoResizeWidthInput.value, 800),
     height: clampPhotoDimension(photoResizeHeightInput.value, 800),
     background: photoResizeBgInput.value || "#ffffff",
+    sourceBackground: photoResizeSourceBgInput.value || "#3f95de",
     fit: photoResizeFitSelect.value,
     replaceBackground: photoResizeReplaceBgInput.checked,
     tolerance: Number(photoResizeToleranceInput.value),
@@ -691,6 +695,10 @@ function hexToRgb(hex) {
     g: (value >> 8) & 255,
     b: value & 255,
   };
+}
+
+function rgbToHex({ r, g, b }) {
+  return `#${[r, g, b].map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0")).join("")}`;
 }
 
 function getPixelDistance(data, index, color) {
@@ -728,6 +736,38 @@ function getDominantBorderColor(imageData) {
   return { r, g, b };
 }
 
+function detectPhotoBackgroundColor() {
+  if (!state.photoResizeBitmap) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = state.photoResizeBitmap.width;
+  canvas.height = state.photoResizeBitmap.height;
+  const context = canvas.getContext("2d");
+  context.drawImage(state.photoResizeBitmap, 0, 0);
+  return getDominantBorderColor(context.getImageData(0, 0, canvas.width, canvas.height));
+}
+
+function samplePhotoBitmapColor(sourceX, sourceY) {
+  if (!state.photoResizeBitmap) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = state.photoResizeBitmap.width;
+  canvas.height = state.photoResizeBitmap.height;
+  const context = canvas.getContext("2d");
+  context.drawImage(state.photoResizeBitmap, 0, 0);
+  const x = Math.max(0, Math.min(canvas.width - 1, Math.round(sourceX)));
+  const y = Math.max(0, Math.min(canvas.height - 1, Math.round(sourceY)));
+  const [r, g, b] = context.getImageData(x, y, 1, 1).data;
+  return { r, g, b };
+}
+
+function applyAutoPhotoSourceColor() {
+  const color = detectPhotoBackgroundColor();
+  if (!color) return;
+  photoResizeSourceBgInput.value = rgbToHex(color);
+  drawPhotoResizePreview();
+}
+
 function createPhotoSourceCanvas(settings) {
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = state.photoResizeBitmap.width;
@@ -738,7 +778,7 @@ function createPhotoSourceCanvas(settings) {
   if (!settings.replaceBackground) return sourceCanvas;
 
   const imageData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const borderColor = getDominantBorderColor(imageData);
+  const borderColor = hexToRgb(settings.sourceBackground);
   const targetColor = hexToRgb(settings.background);
   const tolerance = Math.max(1, settings.tolerance);
   const feather = Math.max(18, tolerance * 0.42);
@@ -769,6 +809,7 @@ function drawPhotoResizePreview() {
 
   if (!state.photoResizeBitmap) {
     photoResizeDownloadBtn.disabled = true;
+    state.photoResizeDrawBox = null;
     return;
   }
 
@@ -780,6 +821,14 @@ function drawPhotoResizePreview() {
   const drawHeight = sourceCanvas.height * scale;
   const x = (settings.width - drawWidth) / 2;
   const y = (settings.height - drawHeight) / 2;
+  state.photoResizeDrawBox = {
+    x,
+    y,
+    width: drawWidth,
+    height: drawHeight,
+    sourceWidth: sourceCanvas.width,
+    sourceHeight: sourceCanvas.height,
+  };
 
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
@@ -1858,6 +1907,7 @@ photoResizeInput.addEventListener("change", async (event) => {
   if (!file) {
     photoResizeStatus.textContent = "尚未选择照片";
     photoResizeDownloadBtn.disabled = true;
+    photoResizeAutoSourceBtn.disabled = true;
     drawPhotoResizePreview();
     return;
   }
@@ -1866,12 +1916,18 @@ photoResizeInput.addEventListener("change", async (event) => {
     state.photoResizeBitmap = await createImageBitmap(file);
     photoResizeWidthInput.value = String(state.photoResizeBitmap.width);
     photoResizeHeightInput.value = String(state.photoResizeBitmap.height);
+    photoResizeAutoSourceBtn.disabled = false;
+    const sourceColor = detectPhotoBackgroundColor();
+    if (sourceColor) {
+      photoResizeSourceBgInput.value = rgbToHex(sourceColor);
+    }
     photoResizeStatus.textContent = `已选择 ${file.name}`;
     drawPhotoResizePreview();
   } catch (error) {
     state.photoResizeFile = null;
     photoResizeStatus.textContent = "照片读取失败";
     photoResizeDownloadBtn.disabled = true;
+    photoResizeAutoSourceBtn.disabled = true;
     alert(`照片处理失败：${getErrorMessage(error)}`);
   }
 });
@@ -1879,6 +1935,32 @@ photoResizeInput.addEventListener("change", async (event) => {
 [photoResizeWidthInput, photoResizeHeightInput, photoResizeBgInput, photoResizeFitSelect, photoResizeReplaceBgInput, photoResizeToleranceInput].forEach((control) => {
   control.addEventListener("input", drawPhotoResizePreview);
   control.addEventListener("change", drawPhotoResizePreview);
+});
+
+photoResizeSourceBgInput.addEventListener("input", drawPhotoResizePreview);
+photoResizeSourceBgInput.addEventListener("change", drawPhotoResizePreview);
+photoResizeAutoSourceBtn.addEventListener("click", applyAutoPhotoSourceColor);
+
+photoResizeCanvas.addEventListener("click", (event) => {
+  if (!state.photoResizeBitmap || !state.photoResizeDrawBox) return;
+
+  const bounds = photoResizeCanvas.getBoundingClientRect();
+  const canvasX = (event.clientX - bounds.left) * (photoResizeCanvas.width / bounds.width);
+  const canvasY = (event.clientY - bounds.top) * (photoResizeCanvas.height / bounds.height);
+  const box = state.photoResizeDrawBox;
+
+  if (canvasX < box.x || canvasY < box.y || canvasX > box.x + box.width || canvasY > box.y + box.height) {
+    return;
+  }
+
+  const sourceX = ((canvasX - box.x) / box.width) * box.sourceWidth;
+  const sourceY = ((canvasY - box.y) / box.height) * box.sourceHeight;
+  const color = samplePhotoBitmapColor(sourceX, sourceY);
+  if (!color) return;
+
+  photoResizeSourceBgInput.value = rgbToHex(color);
+  drawPhotoResizePreview();
+  photoResizeStatus.textContent = `已从预览取样原背景色 ${photoResizeSourceBgInput.value}`;
 });
 
 photoResizeDownloadBtn.addEventListener("click", async () => {

@@ -320,12 +320,17 @@
                 <input id="photoResizeBgInput" type="color" value="#ffffff" />
               </label>
               <label>
+                <span>原背景色</span>
+                <input id="photoResizeSourceBgInput" type="color" value="#3f95de" />
+              </label>
+              <label>
                 <span>填充方式</span>
                 <select id="photoResizeFitSelect">
                   <option value="contain" selected>完整显示</option>
                   <option value="cover">铺满裁切</option>
                 </select>
               </label>
+              <button id="photoResizeAutoSourceBtn" class="secondary photo-auto-source" type="button" disabled>自动取样</button>
               <label class="check-row photo-key-row">
                 <input id="photoResizeReplaceBgInput" type="checkbox" checked />
                 <span>智能换底色</span>
