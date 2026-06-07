@@ -70,6 +70,16 @@ const pdfToJpgInput = document.querySelector("#pdfToJpgInput");
 const pdfToJpgBtn = document.querySelector("#pdfToJpgBtn");
 const pdfToJpgStatus = document.querySelector("#pdfToJpgStatus");
 const jpgQualityInput = document.querySelector("#jpgQualityInput");
+const photoResizeInput = document.querySelector("#photoResizeInput");
+const photoResizeWidthInput = document.querySelector("#photoResizeWidthInput");
+const photoResizeHeightInput = document.querySelector("#photoResizeHeightInput");
+const photoResizeBgInput = document.querySelector("#photoResizeBgInput");
+const photoResizeFitSelect = document.querySelector("#photoResizeFitSelect");
+const photoResizeReplaceBgInput = document.querySelector("#photoResizeReplaceBgInput");
+const photoResizeToleranceInput = document.querySelector("#photoResizeToleranceInput");
+const photoResizeCanvas = document.querySelector("#photoResizeCanvas");
+const photoResizeDownloadBtn = document.querySelector("#photoResizeDownloadBtn");
+const photoResizeStatus = document.querySelector("#photoResizeStatus");
 const recentFilesKey = "moapdf.recentFiles.v1";
 const a4PortraitSize = [595.28, 841.89];
 
@@ -91,6 +101,8 @@ const state = {
   compressFile: null,
   pdfToTextFile: null,
   pdfToJpgFile: null,
+  photoResizeFile: null,
+  photoResizeBitmap: null,
 };
 
 function activeBlankPages() {
@@ -650,6 +662,130 @@ function canvasToBlob(canvas, type = "image/png", quality) {
       }
     }, type, quality);
   });
+}
+
+function clampPhotoDimension(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(8000, Math.max(1, Math.round(number)));
+}
+
+function getPhotoResizeSettings() {
+  return {
+    width: clampPhotoDimension(photoResizeWidthInput.value, 800),
+    height: clampPhotoDimension(photoResizeHeightInput.value, 800),
+    background: photoResizeBgInput.value || "#ffffff",
+    fit: photoResizeFitSelect.value,
+    replaceBackground: photoResizeReplaceBgInput.checked,
+    tolerance: Number(photoResizeToleranceInput.value),
+  };
+}
+
+function hexToRgb(hex) {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized.length === 3
+    ? normalized.split("").map((char) => `${char}${char}`).join("")
+    : normalized, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+function getPixelDistance(data, index, color) {
+  const red = data[index] - color.r;
+  const green = data[index + 1] - color.g;
+  const blue = data[index + 2] - color.b;
+  return Math.sqrt(red * red + green * green + blue * blue);
+}
+
+function getDominantBorderColor(imageData) {
+  const { data, width, height } = imageData;
+  const bucketCounts = new Map();
+  const sampleStep = Math.max(1, Math.floor(Math.min(width, height) / 120));
+  const edgeDepth = Math.max(2, Math.floor(Math.min(width, height) * 0.04));
+
+  function addSample(x, y) {
+    const index = (y * width + x) * 4;
+    if (data[index + 3] < 220) return;
+    const key = `${data[index] >> 4},${data[index + 1] >> 4},${data[index + 2] >> 4}`;
+    bucketCounts.set(key, (bucketCounts.get(key) ?? 0) + 1);
+  }
+
+  for (let x = 0; x < width; x += sampleStep) {
+    for (let y = 0; y < edgeDepth; y += sampleStep) addSample(x, y);
+    for (let y = Math.max(0, height - edgeDepth); y < height; y += sampleStep) addSample(x, y);
+  }
+
+  for (let y = 0; y < height; y += sampleStep) {
+    for (let x = 0; x < edgeDepth; x += sampleStep) addSample(x, y);
+    for (let x = Math.max(0, width - edgeDepth); x < width; x += sampleStep) addSample(x, y);
+  }
+
+  const [bestKey] = [...bucketCounts.entries()].sort((first, second) => second[1] - first[1])[0] ?? ["15,15,15"];
+  const [r, g, b] = bestKey.split(",").map((part) => Number(part) * 16 + 8);
+  return { r, g, b };
+}
+
+function createPhotoSourceCanvas(settings) {
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = state.photoResizeBitmap.width;
+  sourceCanvas.height = state.photoResizeBitmap.height;
+  const sourceContext = sourceCanvas.getContext("2d");
+  sourceContext.drawImage(state.photoResizeBitmap, 0, 0);
+
+  if (!settings.replaceBackground) return sourceCanvas;
+
+  const imageData = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const borderColor = getDominantBorderColor(imageData);
+  const targetColor = hexToRgb(settings.background);
+  const tolerance = Math.max(1, settings.tolerance);
+  const feather = Math.max(18, tolerance * 0.42);
+
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const distance = getPixelDistance(imageData.data, index, borderColor);
+    if (distance > tolerance + feather) continue;
+
+    const strength = distance <= tolerance ? 1 : 1 - (distance - tolerance) / feather;
+    imageData.data[index] = imageData.data[index] * (1 - strength) + targetColor.r * strength;
+    imageData.data[index + 1] = imageData.data[index + 1] * (1 - strength) + targetColor.g * strength;
+    imageData.data[index + 2] = imageData.data[index + 2] * (1 - strength) + targetColor.b * strength;
+  }
+
+  sourceContext.putImageData(imageData, 0, 0);
+  return sourceCanvas;
+}
+
+function drawPhotoResizePreview() {
+  const canvas = photoResizeCanvas;
+  const context = canvas.getContext("2d");
+  const settings = getPhotoResizeSettings();
+
+  canvas.width = settings.width;
+  canvas.height = settings.height;
+  context.fillStyle = settings.background;
+  context.fillRect(0, 0, settings.width, settings.height);
+
+  if (!state.photoResizeBitmap) {
+    photoResizeDownloadBtn.disabled = true;
+    return;
+  }
+
+  const sourceCanvas = createPhotoSourceCanvas(settings);
+  const scale = settings.fit === "cover"
+    ? Math.max(settings.width / sourceCanvas.width, settings.height / sourceCanvas.height)
+    : Math.min(settings.width / sourceCanvas.width, settings.height / sourceCanvas.height);
+  const drawWidth = sourceCanvas.width * scale;
+  const drawHeight = sourceCanvas.height * scale;
+  const x = (settings.width - drawWidth) / 2;
+  const y = (settings.height - drawHeight) / 2;
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(sourceCanvas, x, y, drawWidth, drawHeight);
+  photoResizeDownloadBtn.disabled = false;
+  photoResizeStatus.textContent = `预览尺寸 ${settings.width} x ${settings.height}px，背景 ${settings.background}`;
 }
 
 async function convertImageToPngBytes(file) {
@@ -1707,6 +1843,63 @@ pdfToJpgBtn.addEventListener("click", async () => {
   } finally {
     pdfToJpgBtn.textContent = "下载 JPG ZIP";
     pdfToJpgBtn.disabled = !state.pdfToJpgFile;
+  }
+});
+
+photoResizeInput.addEventListener("change", async (event) => {
+  const file = event.target.files[0] ?? null;
+  state.photoResizeFile = file;
+
+  if (state.photoResizeBitmap) {
+    state.photoResizeBitmap.close();
+    state.photoResizeBitmap = null;
+  }
+
+  if (!file) {
+    photoResizeStatus.textContent = "尚未选择照片";
+    photoResizeDownloadBtn.disabled = true;
+    drawPhotoResizePreview();
+    return;
+  }
+
+  try {
+    state.photoResizeBitmap = await createImageBitmap(file);
+    photoResizeWidthInput.value = String(state.photoResizeBitmap.width);
+    photoResizeHeightInput.value = String(state.photoResizeBitmap.height);
+    photoResizeStatus.textContent = `已选择 ${file.name}`;
+    drawPhotoResizePreview();
+  } catch (error) {
+    state.photoResizeFile = null;
+    photoResizeStatus.textContent = "照片读取失败";
+    photoResizeDownloadBtn.disabled = true;
+    alert(`照片处理失败：${getErrorMessage(error)}`);
+  }
+});
+
+[photoResizeWidthInput, photoResizeHeightInput, photoResizeBgInput, photoResizeFitSelect, photoResizeReplaceBgInput, photoResizeToleranceInput].forEach((control) => {
+  control.addEventListener("input", drawPhotoResizePreview);
+  control.addEventListener("change", drawPhotoResizePreview);
+});
+
+photoResizeDownloadBtn.addEventListener("click", async () => {
+  if (!state.photoResizeBitmap) return;
+
+  photoResizeDownloadBtn.disabled = true;
+  photoResizeDownloadBtn.textContent = "生成中...";
+
+  try {
+    drawPhotoResizePreview();
+    const settings = getPhotoResizeSettings();
+    const blob = await canvasToBlob(photoResizeCanvas, "image/png");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const baseName = state.photoResizeFile ? getFileBaseName(state.photoResizeFile) : "photo";
+    await saveBytes(bytes, `${baseName}-${settings.width}x${settings.height}.png`, "image/png");
+    photoResizeStatus.textContent = `已生成 ${settings.width} x ${settings.height}px PNG`;
+  } catch (error) {
+    alert(`照片导出失败：${getErrorMessage(error)}`);
+  } finally {
+    photoResizeDownloadBtn.textContent = "下载处理后照片";
+    photoResizeDownloadBtn.disabled = !state.photoResizeBitmap;
   }
 });
 

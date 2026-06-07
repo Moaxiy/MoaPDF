@@ -1053,6 +1053,85 @@ h1 {
   accent-color: var(--accent);
 }
 
+.photo-resize-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+.photo-resize-options label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.photo-resize-options span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.photo-resize-options input,
+.photo-resize-options select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0 8px;
+}
+
+.photo-resize-options input[type="color"] {
+  padding: 3px;
+}
+
+.photo-resize-options input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  accent-color: var(--accent);
+}
+
+.photo-resize-options input[type="range"] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.photo-resize-options .photo-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+}
+
+.photo-preview-box {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(45deg, rgba(20, 32, 54, 0.05) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(20, 32, 54, 0.05) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(20, 32, 54, 0.05) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(20, 32, 54, 0.05) 75%),
+    var(--panel-soft);
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-size: 20px 20px;
+}
+
+.photo-preview-box canvas {
+  max-width: 100%;
+  max-height: 260px;
+  border: 1px solid rgba(20, 32, 54, 0.12);
+  background: white;
+  box-shadow: 0 10px 22px rgba(20, 32, 54, 0.12);
+}
+
 .compression-options label {
   display: grid;
   gap: 6px;

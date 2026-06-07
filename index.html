@@ -293,6 +293,54 @@
             <button id="pdfToJpgBtn" class="primary" disabled>下载 JPG ZIP</button>
             <p id="pdfToJpgStatus" class="tool-status">尚未选择 PDF</p>
           </article>
+
+          <article class="convert-card photo-resize-card">
+            <div class="tool-card-head">
+              <span>07</span>
+              <div>
+                <strong>照片尺寸与背景</strong>
+                <p>调整照片输出尺寸，使用指定背景色补齐画布。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="photoResizeInput" type="file" accept="image/png,image/jpeg,image/webp" />
+              <span>选择照片</span>
+            </label>
+            <div class="photo-resize-options" aria-label="照片尺寸与背景设置">
+              <label>
+                <span>宽度 px</span>
+                <input id="photoResizeWidthInput" type="number" min="1" max="8000" value="800" />
+              </label>
+              <label>
+                <span>高度 px</span>
+                <input id="photoResizeHeightInput" type="number" min="1" max="8000" value="800" />
+              </label>
+              <label>
+                <span>背景颜色</span>
+                <input id="photoResizeBgInput" type="color" value="#ffffff" />
+              </label>
+              <label>
+                <span>填充方式</span>
+                <select id="photoResizeFitSelect">
+                  <option value="contain" selected>完整显示</option>
+                  <option value="cover">铺满裁切</option>
+                </select>
+              </label>
+              <label class="check-row photo-key-row">
+                <input id="photoResizeReplaceBgInput" type="checkbox" checked />
+                <span>智能换底色</span>
+              </label>
+              <label>
+                <span>换底强度</span>
+                <input id="photoResizeToleranceInput" type="range" min="20" max="180" step="5" value="95" />
+              </label>
+            </div>
+            <div class="photo-preview-box" id="photoResizePreviewBox">
+              <canvas id="photoResizeCanvas" width="800" height="800" aria-label="照片预览"></canvas>
+            </div>
+            <button id="photoResizeDownloadBtn" class="primary" disabled>下载处理后照片</button>
+            <p id="photoResizeStatus" class="tool-status">尚未选择照片</p>
+          </article>
         </section>
       </section>
     </main>
