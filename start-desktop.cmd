@@ -3,26 +3,39 @@ setlocal
 
 cd /d "%~dp0"
 
-echo Starting MoaPDF desktop app...
-echo.
+set "LOCAL_APP=%LOCALAPPDATA%\MoaPDF\MoaPDF.exe"
+set "LOCAL_PROGRAM_APP=%LOCALAPPDATA%\Programs\MoaPDF\MoaPDF.exe"
+set "PROGRAM_APP=%ProgramFiles%\MoaPDF\MoaPDF.exe"
 
-where npm.cmd >nul 2>nul
+if exist "%LOCAL_APP%" (
+  start "" "%LOCAL_APP%"
+  exit /b 0
+)
+
+if exist "%LOCAL_PROGRAM_APP%" (
+  start "" "%LOCAL_PROGRAM_APP%"
+  exit /b 0
+)
+
+if exist "%PROGRAM_APP%" (
+  start "" "%PROGRAM_APP%"
+  exit /b 0
+)
+
+where powershell.exe >nul 2>nul
 if errorlevel 1 (
-  echo npm.cmd was not found. Please install Node.js or add npm to PATH.
-  echo.
+  echo powershell.exe was not found.
   pause
   exit /b 1
 )
 
-call npm.cmd run tauri:dev
-set EXIT_CODE=%ERRORLEVEL%
-
-if not "%EXIT_CODE%"=="0" (
-  echo.
-  echo MoaPDF failed to start. Exit code: %EXIT_CODE%
-  echo.
+where npm.cmd >nul 2>nul
+if errorlevel 1 (
+  echo npm.cmd was not found. Please install Node.js or add npm to PATH.
   pause
-  exit /b %EXIT_CODE%
+  exit /b 1
 )
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$npm=(Get-Command npm.cmd).Source; Start-Process -FilePath $npm -ArgumentList 'run','tauri:dev' -WorkingDirectory '%CD%' -WindowStyle Hidden"
 
 endlocal

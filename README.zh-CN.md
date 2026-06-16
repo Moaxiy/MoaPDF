@@ -10,8 +10,8 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 下载
 
-- [Gitee 下载 MoaPDF v0.1.11 Windows 安装程序](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.11/MoaPDF_0.1.11_x64-setup.exe)
-- [GitHub 下载 MoaPDF v0.1.11 Windows 安装程序](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.11/MoaPDF_0.1.11_x64-setup.exe)
+- [Gitee 下载 MoaPDF v0.1.12 Windows 安装程序](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.12/MoaPDF_0.1.12_x64-setup.exe)
+- [GitHub 下载 MoaPDF v0.1.12 Windows 安装程序](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.12/MoaPDF_0.1.12_x64-setup.exe)
 
 ## 核心功能
 
@@ -31,12 +31,10 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 本次版本更新
 
-- 图片转 PDF 支持拖拽上传和追加选择，不再覆盖已排序图片
-- 图片转 PDF 新增缩略图排序、清空图片、页面尺寸和边距设置
-- PDF 转 PNG 新增页码范围导出
-- 照片尺寸与背景新增智能换底色，预览和下载结果保持一致
-- 照片换底支持原背景色手动指定、自动取样和点击预览取样
-- 优化构建分包，降低主入口脚本体积
+- 桌面端安装版启动时不再弹出命令行窗口
+- 关闭窗口后自动隐藏到系统托盘，保持后台运行
+- 托盘菜单新增显示、隐藏到后台和退出操作
+- 根目录快捷启动脚本优先打开已安装版本，并隐藏开发启动窗口
 
 ## 技术栈
 
