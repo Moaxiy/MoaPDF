@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MoaPDF</title>
+    <link rel="icon" href="./codex-pdf-icon.svg" type="image/svg+xml" />
+    <script type="module" crossorigin src="./assets/index-BYt8szhe.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/pdf-VQoeDJgY.js">
+    <link rel="modulepreload" crossorigin href="./assets/zip-CI1gBSIY.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-CYybpPbS.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar" aria-label="PDF 工具栏">
+        <div class="brand">
+          <span class="brand-mark">
+            <img src="./codex-pdf-icon.svg" alt="" />
+          </span>
+          <div>
+            <h1>MoaPDF</h1>
+            <p>插入空白页、删除、拆分和合并，全部在本地完成。</p>
+          </div>
+        </div>
+
+        <nav class="page-switcher" aria-label="页面切换">
+          <button class="nav-tab is-active" type="button" data-page-target="editPage">页面整理</button>
+          <button class="nav-tab" type="button" data-page-target="convertPage">格式转换</button>
+        </nav>
+      </section>
+
+      <section class="app-page is-active" id="editPage">
+        <section class="document-bar" aria-label="当前 PDF 状态">
+          <div class="status-block">
+            <span class="kicker">当前文件</span>
+            <strong id="fileName">尚未选择</strong>
+            <span id="pageCount">选择 PDF 后显示页码</span>
+          </div>
+
+          <div class="stat-grid">
+            <div>
+              <span>原页数</span>
+              <strong id="originalCount">0</strong>
+            </div>
+            <div>
+              <span>空白页</span>
+              <strong id="blankCount">0</strong>
+            </div>
+            <div>
+              <span>删除页</span>
+              <strong id="deletedCount">0</strong>
+            </div>
+            <div>
+              <span>输出页数</span>
+              <strong id="outputCount">0</strong>
+            </div>
+          </div>
+
+          <div class="actions">
+            <label class="file-picker">
+              <input id="pdfInput" type="file" accept="application/pdf" />
+              <span>打开 PDF</span>
+            </label>
+            <button id="downloadBtn" class="primary" disabled>下载处理后 PDF</button>
+            <button id="resetBtn" class="secondary" disabled>清空操作</button>
+          </div>
+
+          <div class="recent-files" id="recentFiles" aria-label="最近处理文件"></div>
+        </section>
+
+        <section class="workspace">
+          <section class="pages-panel" aria-label="页面列表">
+            <div class="empty-state" id="emptyState">
+              <strong>选择一个 PDF 开始</strong>
+              <span>页面会按原始页码排列，每一页都可以单独添加空白页。</span>
+            </div>
+            <div class="page-list" id="pageList"></div>
+          </section>
+
+          <aside class="side-tools" aria-label="页面处理工具">
+            <div class="side-tools-head">
+              <strong>页面处理</strong>
+              <span>输入页码范围，快速导出指定页面</span>
+            </div>
+
+            <div class="split-tool" aria-label="拆分 PDF">
+              <div>
+                <strong>拆分 PDF</strong>
+                <span>输入页码范围导出新文件</span>
+              </div>
+              <input id="splitRangeInput" type="text" placeholder="例如 1-3, 6, 9-12" />
+              <button id="splitDownloadBtn" class="secondary" disabled>下载拆分 PDF</button>
+            </div>
+
+            <section class="merge-panel" aria-label="PDF 合并">
+              <div class="merge-head">
+                <div>
+                  <strong>合并 PDF</strong>
+                  <span>按列表顺序合并多个文件</span>
+                </div>
+                <label class="file-picker merge-picker">
+                  <input id="mergeInput" type="file" accept="application/pdf" multiple />
+                  <span>选择多个</span>
+                </label>
+              </div>
+              <div class="merge-empty" id="mergeEmpty">选择两个或更多 PDF 后开始合并</div>
+              <div class="merge-list" id="mergeList"></div>
+              <div class="merge-actions">
+                <button id="mergeDownloadBtn" class="primary" disabled>下载合并 PDF</button>
+                <button id="mergeClearBtn" class="secondary" disabled>清空列表</button>
+              </div>
+            </section>
+          </aside>
+        </section>
+      </section>
+
+      <section class="app-page" id="convertPage" hidden>
+        <section class="convert-hero">
+          <div>
+            <span class="kicker">转换与压缩</span>
+            <h2>文件与 PDF 的本地转换工作台</h2>
+            <p>支持图片转 PDF、PDF 转图片、文本/Markdown 转 PDF，以及基础 PDF 压缩。所有文件都在浏览器本地处理。</p>
+          </div>
+        </section>
+
+        <section class="convert-grid" aria-label="转换压缩工具">
+          <article class="convert-card accent-card">
+            <div class="tool-card-head">
+              <span>01</span>
+              <div>
+                <strong>图片转 PDF</strong>
+                <p>支持 PNG、JPG、WebP，多张图片按选择顺序生成 PDF。</p>
+              </div>
+            </div>
+            <label class="tool-drop image-drop-zone" id="imageDropZone">
+              <input id="imageToPdfInput" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+              <span>选择或拖入图片</span>
+            </label>
+            <label class="check-row tool-mode">
+              <input id="imageToPdfMergeInput" type="checkbox" checked />
+              <span>合并为一个 PDF</span>
+            </label>
+            <div class="image-pdf-options" aria-label="图片转 PDF 页面设置">
+              <label>
+                <span>页面尺寸</span>
+                <select id="imageToPdfPageSize">
+                  <option value="original">原图尺寸</option>
+                  <option value="a4-portrait">A4 竖版</option>
+                  <option value="a4-landscape">A4 横版</option>
+                </select>
+              </label>
+              <label>
+                <span>页面边距</span>
+                <select id="imageToPdfMargin">
+                  <option value="0">无边距</option>
+                  <option value="18">窄边距</option>
+                  <option value="36" selected>标准边距</option>
+                  <option value="54">宽边距</option>
+                </select>
+              </label>
+            </div>
+            <div class="image-sort-list" id="imageToPdfList" aria-label="图片排序列表"></div>
+            <button id="imageToPdfClearBtn" class="secondary" type="button" disabled>清空图片</button>
+            <button id="imageToPdfBtn" class="primary" disabled>下载图片 PDF</button>
+            <p id="imageToPdfStatus" class="tool-status">尚未选择图片</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>02</span>
+              <div>
+                <strong>PDF 转 PNG</strong>
+                <p>将 PDF 每一页渲染为 PNG，并打包为 ZIP 下载。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="pdfToImagesInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <label class="quality-field">
+              <span>导出页码</span>
+              <input id="pdfToImagesRangeInput" type="text" placeholder="留空导出全部，例如 1-3, 6" />
+            </label>
+            <button id="pdfToImagesBtn" class="primary" disabled>下载图片 ZIP</button>
+            <p id="pdfToImagesStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>03</span>
+              <div>
+                <strong>文本 / Markdown 转 PDF</strong>
+                <p>导入 TXT、MD，按纯文本排版导出 PDF。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="textToPdfInput" type="file" accept=".txt,.md,text/plain,text/markdown" />
+              <span>选择文本文件</span>
+            </label>
+            <button id="textToPdfBtn" class="primary" disabled>下载文本 PDF</button>
+            <p id="textToPdfStatus" class="tool-status">尚未选择文本文件</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>04</span>
+              <div>
+                <strong>PDF 压缩</strong>
+                <p>支持无损优化和重渲染强压，扫描件、图片型 PDF 减重更明显。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="compressPdfInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <div class="compression-options" aria-label="PDF 压缩设置">
+              <label>
+                <span>压缩模式</span>
+                <select id="compressModeSelect">
+                  <option value="balanced" selected>均衡压缩</option>
+                  <option value="lossless">无损优化</option>
+                  <option value="strong">强力压缩</option>
+                  <option value="extreme">极限压缩</option>
+                </select>
+              </label>
+              <label>
+                <span>图片质量</span>
+                <input id="compressQualityInput" type="range" min="0.35" max="0.92" step="0.03" value="0.72" />
+              </label>
+              <label>
+                <span>页面缩放</span>
+                <input id="compressScaleInput" type="range" min="0.75" max="1.8" step="0.05" value="1.15" />
+              </label>
+              <label class="check-row">
+                <input id="compressGrayscaleInput" type="checkbox" />
+                <span>转为灰度以进一步减小体积</span>
+              </label>
+            </div>
+            <button id="compressPdfBtn" class="primary" disabled>下载压缩 PDF</button>
+            <p id="compressPdfStatus" class="tool-status">尚未选择 PDF</p>
+            <div id="compressEstimatePanel" class="compression-result is-empty" aria-live="polite">
+              <div>
+                <span>预计压缩后</span>
+                <strong id="compressEstimateSize">等待选择 PDF</strong>
+              </div>
+              <div class="compression-result-grid">
+                <span>
+                  <em id="compressOriginalSize">--</em>
+                  原始大小
+                </span>
+                <span>
+                  <em id="compressSavedSize">--</em>
+                  预计节省
+                </span>
+                <span>
+                  <em id="compressEstimateRatio">--</em>
+                  预计比例
+                </span>
+              </div>
+              <p id="compressEstimateHint">选择 PDF 后会根据当前压缩设置实时估算。</p>
+            </div>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>05</span>
+              <div>
+                <strong>PDF 转 TXT</strong>
+                <p>提取 PDF 中可复制的文本内容，导出为 TXT 文件。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="pdfToTextInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <button id="pdfToTextBtn" class="primary" disabled>下载 TXT</button>
+            <p id="pdfToTextStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+
+          <article class="convert-card">
+            <div class="tool-card-head">
+              <span>06</span>
+              <div>
+                <strong>PDF 转 JPG</strong>
+                <p>将 PDF 页面导出为 JPG，适合获得更小的图片文件。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="pdfToJpgInput" type="file" accept="application/pdf" />
+              <span>选择 PDF</span>
+            </label>
+            <label class="quality-field">
+              <span>JPG 质量</span>
+              <input id="jpgQualityInput" type="range" min="0.45" max="0.95" step="0.05" value="0.8" />
+            </label>
+            <button id="pdfToJpgBtn" class="primary" disabled>下载 JPG ZIP</button>
+            <p id="pdfToJpgStatus" class="tool-status">尚未选择 PDF</p>
+          </article>
+
+          <article class="convert-card photo-resize-card">
+            <div class="tool-card-head">
+              <span>07</span>
+              <div>
+                <strong>照片尺寸与背景</strong>
+                <p>调整照片输出尺寸，使用指定背景色补齐画布。</p>
+              </div>
+            </div>
+            <label class="tool-drop">
+              <input id="photoResizeInput" type="file" accept="image/png,image/jpeg,image/webp" />
+              <span>选择照片</span>
+            </label>
+            <div class="photo-resize-options" aria-label="照片尺寸与背景设置">
+              <label>
+                <span>宽度 px</span>
+                <input id="photoResizeWidthInput" type="number" min="1" max="8000" value="800" />
+              </label>
+              <label>
+                <span>高度 px</span>
+                <input id="photoResizeHeightInput" type="number" min="1" max="8000" value="800" />
+              </label>
+              <label>
+                <span>背景颜色</span>
+                <input id="photoResizeBgInput" type="color" value="#ffffff" />
+              </label>
+              <label>
+                <span>原背景色</span>
+                <input id="photoResizeSourceBgInput" type="color" value="#3f95de" />
+              </label>
+              <label>
+                <span>填充方式</span>
+                <select id="photoResizeFitSelect">
+                  <option value="contain" selected>完整显示</option>
+                  <option value="cover">铺满裁切</option>
+                </select>
+              </label>
+              <button id="photoResizeAutoSourceBtn" class="secondary photo-auto-source" type="button" disabled>自动取样</button>
+              <label class="check-row photo-key-row">
+                <input id="photoResizeReplaceBgInput" type="checkbox" checked />
+                <span>智能换底色</span>
+              </label>
+              <label>
+                <span>换底强度</span>
+                <input id="photoResizeToleranceInput" type="range" min="20" max="180" step="5" value="95" />
+              </label>
+            </div>
+            <div class="photo-preview-box" id="photoResizePreviewBox">
+              <canvas id="photoResizeCanvas" width="800" height="800" aria-label="照片预览"></canvas>
+            </div>
+            <button id="photoResizeDownloadBtn" class="primary" disabled>下载处理后照片</button>
+            <p id="photoResizeStatus" class="tool-status">尚未选择照片</p>
+          </article>
+        </section>
+      </section>
+    </main>
+
+  </body>
+</html>
