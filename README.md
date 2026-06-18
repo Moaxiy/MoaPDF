@@ -16,8 +16,8 @@ MoaPDF 是一款本地运行的 PDF 工具，适合在打印、整理和转换 P
 
 ## 下载
 
-- [Gitee 下载 MoaPDF v0.1.12 Windows 安装程序](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.12/MoaPDF_0.1.12_x64-setup.exe)
-- [GitHub 下载 MoaPDF v0.1.12 Windows 安装程序](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.12/MoaPDF_0.1.12_x64-setup.exe)
+- [Gitee 下载 MoaPDF v0.1.13 Windows 安装程序](https://gitee.com/MXiang0104/codex-pdf/releases/download/v0.1.13/MoaPDF_0.1.13_x64-setup.exe)
+- [GitHub 下载 MoaPDF v0.1.13 Windows 安装程序](https://github.com/Moaxiy/MoaPDF/releases/download/v0.1.13/MoaPDF_0.1.13_x64-setup.exe)
 
 ## 核心功能
 

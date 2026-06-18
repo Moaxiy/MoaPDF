@@ -34,6 +34,11 @@ const batchRestoreBtn = document.querySelector("#batchRestoreBtn");
 const batchBlankBtn = document.querySelector("#batchBlankBtn");
 const navTabs = document.querySelectorAll(".nav-tab");
 const appPages = document.querySelectorAll(".app-page");
+const taskProgress = document.querySelector("#taskProgress");
+const taskProgressTitle = document.querySelector("#taskProgressTitle");
+const taskProgressValue = document.querySelector("#taskProgressValue");
+const taskProgressBar = document.querySelector("#taskProgressBar");
+const taskProgressDetail = document.querySelector("#taskProgressDetail");
 const imageToPdfInput = document.querySelector("#imageToPdfInput");
 const imageDropZone = document.querySelector("#imageDropZone");
 const imageToPdfMergeInput = document.querySelector("#imageToPdfMergeInput");
@@ -106,7 +111,81 @@ const state = {
   photoResizeFile: null,
   photoResizeBitmap: null,
   photoResizeDrawBox: null,
+  taskProgressTimer: null,
 };
+
+function clearTaskProgressTimer() {
+  if (state.taskProgressTimer) {
+    window.clearTimeout(state.taskProgressTimer);
+    state.taskProgressTimer = null;
+  }
+}
+
+function showTaskProgress(title, detail, current = 0, total = 1) {
+  const safeTotal = Math.max(total, 1);
+  const ratio = Math.max(0, Math.min(1, current / safeTotal));
+  const percent = Math.round(ratio * 100);
+
+  clearTaskProgressTimer();
+  taskProgress.classList.remove("is-hidden");
+  taskProgress.classList.remove("is-error", "is-complete");
+  taskProgress.classList.add("is-active");
+  taskProgress.setAttribute("aria-busy", "true");
+  taskProgressTitle.textContent = title;
+  taskProgressValue.textContent = `${percent}%`;
+  taskProgressBar.style.width = `${percent}%`;
+  taskProgressDetail.textContent = detail;
+
+  const progressTrack = taskProgressBar.parentElement;
+  progressTrack?.setAttribute("role", "progressbar");
+  progressTrack?.setAttribute("aria-valuemin", "0");
+  progressTrack?.setAttribute("aria-valuemax", "100");
+  progressTrack?.setAttribute("aria-valuenow", String(percent));
+}
+
+function completeTaskProgress(title, detail) {
+  showTaskProgress(title, detail, 1, 1);
+  taskProgress.classList.remove("is-active", "is-error");
+  taskProgress.classList.add("is-complete");
+  taskProgress.setAttribute("aria-busy", "false");
+  state.taskProgressTimer = window.setTimeout(() => {
+    taskProgress.classList.add("is-hidden");
+    taskProgress.classList.remove("is-complete");
+    state.taskProgressTimer = null;
+  }, 2200);
+}
+
+function cancelTaskProgress(title, detail) {
+  showTaskProgress(title, detail, 1, 1);
+  taskProgress.classList.remove("is-active", "is-error");
+  taskProgress.classList.add("is-complete");
+  taskProgress.setAttribute("aria-busy", "false");
+  state.taskProgressTimer = window.setTimeout(() => {
+    taskProgress.classList.add("is-hidden");
+    taskProgress.classList.remove("is-complete");
+    state.taskProgressTimer = null;
+  }, 1200);
+}
+
+function failTaskProgress(title, detail) {
+  clearTaskProgressTimer();
+  taskProgress.classList.remove("is-hidden");
+  taskProgress.classList.remove("is-active", "is-complete");
+  taskProgress.classList.add("is-error");
+  taskProgress.setAttribute("aria-busy", "false");
+  taskProgressTitle.textContent = title;
+  taskProgressValue.textContent = "失败";
+  taskProgressBar.style.width = "100%";
+  taskProgressDetail.textContent = detail;
+
+  const progressTrack = taskProgressBar.parentElement;
+  progressTrack?.setAttribute("aria-valuenow", "100");
+}
+
+function resetTaskProgressTone() {
+  clearTaskProgressTimer();
+  taskProgress.classList.remove("is-error", "is-complete");
+}
 
 function activeBlankPages() {
   let count = 0;
@@ -469,9 +548,12 @@ function renderPages() {
 }
 
 async function loadPdf(file) {
+  showTaskProgress("读取 PDF", `正在读取 ${file.name}`, 0, 4);
   const bytes = await file.arrayBuffer();
+  showTaskProgress("读取 PDF", "正在解析 PDF 页面", 1, 4);
   const pdfBytes = bytes.slice(0);
   const pdf = await PDFDocument.load(bytes);
+  showTaskProgress("读取 PDF", "正在准备页面预览", 2, 4);
   const previewPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
 
   state.file = file;
@@ -486,7 +568,9 @@ async function loadPdf(file) {
   state.lastSelectedPage = null;
   saveRecentFile(file);
 
+  showTaskProgress("读取 PDF", `已读取 ${state.pageSizes.length} 页，正在渲染预览`, 3, 4);
   renderPages();
+  completeTaskProgress("读取 PDF", `已载入 ${file.name}，共 ${state.pageSizes.length} 页。`);
 }
 
 function addBlankPage(outputPdf, position) {
@@ -606,8 +690,9 @@ function getErrorMessage(error) {
 
 async function saveBytes(bytes, filename, type = "application/pdf") {
   if (!isTauriApp()) {
+    showTaskProgress("保存文件", `正在准备下载 ${filename}`, 0, 1);
     downloadBytes(bytes, filename, type);
-    return;
+    return true;
   }
 
   const [{ save }, { invoke }] = await Promise.all([
@@ -615,6 +700,7 @@ async function saveBytes(bytes, filename, type = "application/pdf") {
     import("@tauri-apps/api/core"),
   ]);
 
+  showTaskProgress("保存文件", `请选择 ${filename} 的保存位置`, 0, 2);
   const filePath = await save({
     defaultPath: filename,
     filters: [
@@ -626,11 +712,14 @@ async function saveBytes(bytes, filename, type = "application/pdf") {
   });
 
   if (!filePath) {
-    return;
+    return false;
   }
 
+  showTaskProgress("保存文件", `正在写入 ${filename}`, 1, 2);
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   await invoke("save_export", { path: filePath, bytes: Array.from(data) });
+  showTaskProgress("保存文件", `已写入 ${filename}`, 2, 2);
+  return true;
 }
 
 function switchPage(targetId) {
@@ -892,11 +981,13 @@ function getFittedImageBox(image, pageWidth, pageHeight, margin) {
 async function buildImagesPdf(files, options = getImageToPdfOptions()) {
   const outputPdf = await PDFDocument.create();
 
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
+    showTaskProgress("图片转 PDF", `正在处理第 ${index + 1}/${files.length} 张图片`, index, files.length);
     const image = await embedImage(outputPdf, file);
     const [pageWidth, pageHeight] = getImagePdfPageSize(image, options);
     const page = outputPdf.addPage([pageWidth, pageHeight]);
     page.drawImage(image, getFittedImageBox(image, pageWidth, pageHeight, options.margin));
+    showTaskProgress("图片转 PDF", `已处理第 ${index + 1}/${files.length} 张图片`, index + 1, files.length);
   }
 
   return outputPdf.save();
@@ -924,10 +1015,12 @@ async function buildSeparateImagePdfsZip(files, options) {
   const usedNames = new Set();
 
   for (const [index, file] of files.entries()) {
+    showTaskProgress("图片转 PDF", `正在生成第 ${index + 1}/${files.length} 个独立 PDF`, index, files.length);
     imageToPdfStatus.textContent = `正在生成第 ${index + 1}/${files.length} 个 PDF...`;
     const pdfBytes = await buildSingleImagePdf(file, options);
     const baseName = getFileBaseName(file) || `image-${index + 1}`;
     zip.file(getUniqueZipFileName(baseName, usedNames), pdfBytes);
+    showTaskProgress("图片转 PDF", `已生成第 ${index + 1}/${files.length} 个独立 PDF`, index + 1, files.length);
   }
 
   return zip.generateAsync({ type: "uint8array" });
@@ -941,6 +1034,7 @@ async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl
   const pageNumbers = pageRange.trim() ? parsePageRanges(pageRange, pdf.numPages) : Array.from({ length: pdf.numPages }, (_, index) => index + 1);
 
   for (const [index, pageNumber] of pageNumbers.entries()) {
+    showTaskProgress("PDF 转图片", `正在渲染第 ${index + 1}/${pageNumbers.length} 页`, index, pageNumbers.length);
     statusEl.textContent = `正在渲染第 ${index + 1}/${pageNumbers.length} 页...`;
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 2 });
@@ -955,6 +1049,7 @@ async function renderPdfPagesToZip(file, imageType, extension, quality, statusEl
     await page.render({ canvasContext: context, viewport }).promise;
     const blob = await canvasToBlob(canvas, imageType, quality);
     zip.file(`${baseName}-page-${String(pageNumber).padStart(3, "0")}.${extension}`, blob);
+    showTaskProgress("PDF 转图片", `已渲染第 ${index + 1}/${pageNumbers.length} 页`, index + 1, pageNumbers.length);
   }
 
   return zip.generateAsync({ type: "uint8array" });
@@ -966,6 +1061,7 @@ async function buildPdfText(file) {
   const pages = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    showTaskProgress("PDF 转 TXT", `正在提取第 ${pageNumber}/${pdf.numPages} 页文本`, pageNumber - 1, pdf.numPages);
     pdfToTextStatus.textContent = `正在提取第 ${pageNumber}/${pdf.numPages} 页...`;
     const page = await pdf.getPage(pageNumber);
     const textContent = await page.getTextContent();
@@ -975,6 +1071,7 @@ async function buildPdfText(file) {
       .replace(/\s+/g, " ")
       .trim();
     pages.push(`--- Page ${pageNumber} ---\n${pageText}`);
+    showTaskProgress("PDF 转 TXT", `已提取第 ${pageNumber}/${pdf.numPages} 页文本`, pageNumber, pdf.numPages);
   }
 
   const text = pages.join("\n\n");
@@ -1049,9 +1146,14 @@ async function buildTextPdf(file) {
   const lines = wrapCanvasText(context, text, 1016);
   const outputPdf = await PDFDocument.create();
   const linesPerPage = 40;
+  const pageTotal = Math.max(1, Math.ceil(Math.max(lines.length, 1) / linesPerPage));
+  let pageIndex = 0;
 
   for (let start = 0; start < Math.max(lines.length, 1); start += linesPerPage) {
+    showTaskProgress("文本转 PDF", `正在生成第 ${pageIndex + 1}/${pageTotal} 页`, pageIndex, pageTotal);
     await addTextCanvasPage(outputPdf, lines, start, linesPerPage);
+    pageIndex += 1;
+    showTaskProgress("文本转 PDF", `已生成第 ${pageIndex}/${pageTotal} 页`, pageIndex, pageTotal);
   }
 
   return outputPdf.save();
@@ -1198,6 +1300,7 @@ async function compressPdfByRendering(file, options) {
   const outputPdf = await PDFDocument.create();
 
   for (let pageNumber = 1; pageNumber <= sourcePdf.numPages; pageNumber += 1) {
+    showTaskProgress("PDF 压缩", `正在重绘压缩第 ${pageNumber}/${sourcePdf.numPages} 页`, pageNumber - 1, sourcePdf.numPages);
     compressPdfStatus.textContent = `正在重绘压缩第 ${pageNumber}/${sourcePdf.numPages} 页...`;
     const sourcePage = await sourcePdf.getPage(pageNumber);
     const baseViewport = sourcePage.getViewport({ scale: 1 });
@@ -1225,6 +1328,7 @@ async function compressPdfByRendering(file, options) {
       width: baseViewport.width,
       height: baseViewport.height,
     });
+    showTaskProgress("PDF 压缩", `已重绘压缩第 ${pageNumber}/${sourcePdf.numPages} 页`, pageNumber, sourcePdf.numPages);
   }
 
   return outputPdf.save({
@@ -1313,20 +1417,26 @@ async function loadMergeFiles(files) {
   const pdfFiles = [...files].filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
   if (pdfFiles.length === 0) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 合并", `正在读取 ${pdfFiles.length} 个 PDF 文件`, 0, pdfFiles.length);
   mergeDownloadBtn.disabled = true;
   mergeDownloadBtn.textContent = "读取中...";
 
   try {
     const items = [];
-    for (const file of pdfFiles) {
+    for (const [index, file] of pdfFiles.entries()) {
+      showTaskProgress("PDF 合并", `正在读取第 ${index + 1}/${pdfFiles.length} 个 PDF 文件`, index, pdfFiles.length);
       items.push({
         file,
         pageCount: await readPdfPageCount(file),
       });
+      showTaskProgress("PDF 合并", `已读取第 ${index + 1}/${pdfFiles.length} 个 PDF 文件`, index + 1, pdfFiles.length);
     }
     state.mergeFiles = items;
     renderMergeList();
+    completeTaskProgress("PDF 合并", `已完成 ${items.length} 个文件的读取，可以开始合并。`);
   } catch (error) {
+    failTaskProgress("PDF 合并", `读取失败：${getErrorMessage(error)}`);
     alert(`读取合并文件失败：${getErrorMessage(error)}`);
   } finally {
     mergeDownloadBtn.textContent = "下载合并 PDF";
@@ -1337,12 +1447,14 @@ async function loadMergeFiles(files) {
 async function buildMergedPdf() {
   const outputPdf = await PDFDocument.create();
 
-  for (const item of state.mergeFiles) {
+  for (const [index, item] of state.mergeFiles.entries()) {
+    showTaskProgress("PDF 合并", `正在读取第 ${index + 1}/${state.mergeFiles.length} 个文件`, index, state.mergeFiles.length);
     const bytes = await item.file.arrayBuffer();
     const sourcePdf = await PDFDocument.load(bytes);
     const pageIndexes = sourcePdf.getPageIndices();
     const copiedPages = await outputPdf.copyPages(sourcePdf, pageIndexes);
     copiedPages.forEach((page) => outputPdf.addPage(page));
+    showTaskProgress("PDF 合并", `已合并第 ${index + 1}/${state.mergeFiles.length} 个文件`, index + 1, state.mergeFiles.length);
   }
 
   return outputPdf.save();
@@ -1353,8 +1465,10 @@ pdfInput.addEventListener("change", async (event) => {
   if (!file) return;
 
   try {
+    resetTaskProgressTone();
     await loadPdf(file);
   } catch (error) {
+    failTaskProgress("读取 PDF", `读取失败：${getErrorMessage(error)}`);
     alert(`读取 PDF 失败：${getErrorMessage(error)}`);
     state.file = null;
     state.bytes = null;
@@ -1370,14 +1484,22 @@ pdfInput.addEventListener("change", async (event) => {
 downloadBtn.addEventListener("click", async () => {
   if (!state.file || !hasPendingPageEdits()) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("页面整理导出", "正在生成处理后的 PDF", 0, 1);
   downloadBtn.disabled = true;
   downloadBtn.textContent = "生成中...";
 
   try {
     const outputBytes = await buildOutputPdf();
     const baseName = state.file.name.replace(/\.pdf$/i, "");
-    await saveBytes(outputBytes, `${baseName}-with-blanks.pdf`);
+    const saved = await saveBytes(outputBytes, `${baseName}-with-blanks.pdf`);
+    if (saved) {
+      completeTaskProgress("页面整理导出", "处理后的 PDF 已生成。");
+    } else {
+      cancelTaskProgress("页面整理导出", "已取消保存处理后的 PDF。");
+    }
   } catch (error) {
+    failTaskProgress("页面整理导出", `导出失败：${getErrorMessage(error)}`);
     alert(`生成 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     downloadBtn.textContent = "下载处理后 PDF";
@@ -1474,14 +1596,22 @@ splitRangeInput.addEventListener("input", updateSummary);
 splitDownloadBtn.addEventListener("click", async () => {
   if (!state.file) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 拆分", "正在根据页码范围生成拆分文件", 0, 1);
   splitDownloadBtn.disabled = true;
   splitDownloadBtn.textContent = "拆分中...";
 
   try {
     const outputBytes = await buildSplitPdf();
     const baseName = state.file.name.replace(/\.pdf$/i, "");
-    await saveBytes(outputBytes, `${baseName}-split.pdf`);
+    const saved = await saveBytes(outputBytes, `${baseName}-split.pdf`);
+    if (saved) {
+      completeTaskProgress("PDF 拆分", "拆分 PDF 已生成。");
+    } else {
+      cancelTaskProgress("PDF 拆分", "已取消保存拆分 PDF。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 拆分", `拆分失败：${getErrorMessage(error)}`);
     alert(`拆分 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     splitDownloadBtn.textContent = "下载拆分 PDF";
@@ -1496,13 +1626,21 @@ mergeInput.addEventListener("change", async (event) => {
 mergeDownloadBtn.addEventListener("click", async () => {
   if (state.mergeFiles.length < 2) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 合并", `准备合并 ${state.mergeFiles.length} 个 PDF`, 0, state.mergeFiles.length);
   mergeDownloadBtn.disabled = true;
   mergeDownloadBtn.textContent = "合并中...";
 
   try {
     const outputBytes = await buildMergedPdf();
-    await saveBytes(outputBytes, "merged.pdf");
+    const saved = await saveBytes(outputBytes, "merged.pdf");
+    if (saved) {
+      completeTaskProgress("PDF 合并", "合并 PDF 已生成。");
+    } else {
+      cancelTaskProgress("PDF 合并", "已取消保存合并 PDF。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 合并", `合并失败：${getErrorMessage(error)}`);
     alert(`合并 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     mergeDownloadBtn.textContent = "下载合并 PDF";
@@ -1694,19 +1832,24 @@ imageDropZone.addEventListener("drop", (event) => {
 async function saveSeparateImagePdfs(files, options) {
   if (files.length === 1) {
     const outputBytes = await buildSingleImagePdf(files[0], options);
-    await saveBytes(outputBytes, `${getFileBaseName(files[0]) || "image"}.pdf`);
+    const saved = await saveBytes(outputBytes, `${getFileBaseName(files[0]) || "image"}.pdf`);
+    if (!saved) return false;
     imageToPdfStatus.textContent = "已生成 1 个 PDF";
-    return;
+    return true;
   }
 
   const zipBytes = await buildSeparateImagePdfsZip(files, options);
-  await saveBytes(zipBytes, "image-pdfs.zip", "application/zip");
+  const saved = await saveBytes(zipBytes, "image-pdfs.zip", "application/zip");
+  if (!saved) return false;
   imageToPdfStatus.textContent = `已生成 ${files.length} 个独立 PDF，并打包为 ZIP`;
+  return true;
 }
 
 imageToPdfBtn.addEventListener("click", async () => {
   if (state.imageFiles.length === 0) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("图片转 PDF", `准备处理 ${state.imageFiles.length} 张图片`, 0, state.imageFiles.length);
   imageToPdfBtn.disabled = true;
   imageToPdfBtn.textContent = "生成中...";
 
@@ -1716,12 +1859,22 @@ imageToPdfBtn.addEventListener("click", async () => {
 
     if (imageToPdfMergeInput.checked) {
       const outputBytes = await buildImagesPdf(files, options);
-      await saveBytes(outputBytes, "images.pdf");
+      const saved = await saveBytes(outputBytes, "images.pdf");
+      if (!saved) {
+        cancelTaskProgress("图片转 PDF", "已取消保存图片 PDF。");
+        return;
+      }
       imageToPdfStatus.textContent = `已合并生成 1 个 PDF，共 ${files.length} 页`;
     } else {
-      await saveSeparateImagePdfs(files, options);
+      const saved = await saveSeparateImagePdfs(files, options);
+      if (!saved) {
+        cancelTaskProgress("图片转 PDF", "已取消保存图片 PDF。");
+        return;
+      }
     }
+    completeTaskProgress("图片转 PDF", "图片 PDF 已生成。");
   } catch (error) {
+    failTaskProgress("图片转 PDF", `生成失败：${getErrorMessage(error)}`);
     alert(`图片转 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     imageToPdfBtn.disabled = state.imageFiles.length === 0;
@@ -1747,6 +1900,8 @@ pdfToImagesRangeInput.addEventListener("input", () => {
 pdfToImagesBtn.addEventListener("click", async () => {
   if (!state.pdfToImagesFile) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 转 PNG", "准备渲染 PDF 页面", 0, 1);
   pdfToImagesBtn.disabled = true;
   pdfToImagesBtn.textContent = "转换中...";
 
@@ -1759,9 +1914,15 @@ pdfToImagesBtn.addEventListener("click", async () => {
       pdfToImagesStatus,
       pdfToImagesRangeInput.value,
     );
-    await saveBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
-    pdfToImagesStatus.textContent = "图片 ZIP 已生成";
+    const saved = await saveBytes(zipBytes, `${getFileBaseName(state.pdfToImagesFile)}-images.zip`, "application/zip");
+    if (saved) {
+      pdfToImagesStatus.textContent = "图片 ZIP 已生成";
+      completeTaskProgress("PDF 转 PNG", "图片 ZIP 已生成。");
+    } else {
+      cancelTaskProgress("PDF 转 PNG", "已取消保存图片 ZIP。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 转 PNG", `转换失败：${getErrorMessage(error)}`);
     alert(`PDF 转图片失败：${getErrorMessage(error)}`);
   } finally {
     pdfToImagesBtn.textContent = "下载图片 ZIP";
@@ -1780,14 +1941,22 @@ textToPdfInput.addEventListener("change", (event) => {
 textToPdfBtn.addEventListener("click", async () => {
   if (!state.textFile) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("文本转 PDF", "正在排版文本内容", 0, 1);
   textToPdfBtn.disabled = true;
   textToPdfBtn.textContent = "生成中...";
 
   try {
     const outputBytes = await buildTextPdf(state.textFile);
-    await saveBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
-    textToPdfStatus.textContent = "文本 PDF 已生成";
+    const saved = await saveBytes(outputBytes, `${getFileBaseName(state.textFile)}.pdf`);
+    if (saved) {
+      textToPdfStatus.textContent = "文本 PDF 已生成";
+      completeTaskProgress("文本转 PDF", "文本 PDF 已生成。");
+    } else {
+      cancelTaskProgress("文本转 PDF", "已取消保存文本 PDF。");
+    }
   } catch (error) {
+    failTaskProgress("文本转 PDF", `生成失败：${getErrorMessage(error)}`);
     alert(`文本转 PDF 失败：${getErrorMessage(error)}`);
   } finally {
     textToPdfBtn.textContent = "下载文本 PDF";
@@ -1816,6 +1985,8 @@ compressModeSelect.addEventListener("change", () => {
 compressPdfBtn.addEventListener("click", async () => {
   if (!state.compressFile) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 压缩", "正在分析并生成压缩结果", 0, 1);
   compressPdfBtn.disabled = true;
   compressPdfBtn.textContent = "压缩中...";
 
@@ -1825,10 +1996,16 @@ compressPdfBtn.addEventListener("click", async () => {
     const beforeSize = state.compressFile.size;
     const afterSize = outputBytes.byteLength;
     const ratio = ((1 - afterSize / beforeSize) * 100).toFixed(1);
-    await saveBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
-    compressPdfStatus.textContent = `${result.strategy}：${formatFileSize(beforeSize)} -> ${formatFileSize(afterSize)}，减少 ${ratio}%`;
-    updateCompressionEstimate({ size: afterSize, strategy: result.strategy });
+    const saved = await saveBytes(outputBytes, `${getFileBaseName(state.compressFile)}-compressed.pdf`);
+    if (saved) {
+      compressPdfStatus.textContent = `${result.strategy}：${formatFileSize(beforeSize)} -> ${formatFileSize(afterSize)}，减少 ${ratio}%`;
+      updateCompressionEstimate({ size: afterSize, strategy: result.strategy });
+      completeTaskProgress("PDF 压缩", `压缩完成，体积减少 ${ratio}%。`);
+    } else {
+      cancelTaskProgress("PDF 压缩", "已取消保存压缩 PDF。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 压缩", `压缩失败：${getErrorMessage(error)}`);
     alert(`PDF 压缩失败：${getErrorMessage(error)}`);
   } finally {
     compressPdfBtn.textContent = "下载压缩 PDF";
@@ -1847,14 +2024,22 @@ pdfToTextInput.addEventListener("change", (event) => {
 pdfToTextBtn.addEventListener("click", async () => {
   if (!state.pdfToTextFile) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 转 TXT", "准备提取 PDF 文本", 0, 1);
   pdfToTextBtn.disabled = true;
   pdfToTextBtn.textContent = "提取中...";
 
   try {
     const textBytes = await buildPdfText(state.pdfToTextFile);
-    await saveBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
-    pdfToTextStatus.textContent = "TXT 已生成";
+    const saved = await saveBytes(textBytes, `${getFileBaseName(state.pdfToTextFile)}.txt`, "text/plain;charset=utf-8");
+    if (saved) {
+      pdfToTextStatus.textContent = "TXT 已生成";
+      completeTaskProgress("PDF 转 TXT", "TXT 已生成。");
+    } else {
+      cancelTaskProgress("PDF 转 TXT", "已取消保存 TXT。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 转 TXT", `提取失败：${getErrorMessage(error)}`);
     alert(`PDF 转 TXT 失败：${getErrorMessage(error)}`);
   } finally {
     pdfToTextBtn.textContent = "下载 TXT";
@@ -1873,6 +2058,8 @@ pdfToJpgInput.addEventListener("change", (event) => {
 pdfToJpgBtn.addEventListener("click", async () => {
   if (!state.pdfToJpgFile) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("PDF 转 JPG", "准备渲染 PDF 页面", 0, 1);
   pdfToJpgBtn.disabled = true;
   pdfToJpgBtn.textContent = "转换中...";
 
@@ -1885,9 +2072,15 @@ pdfToJpgBtn.addEventListener("click", async () => {
       quality,
       pdfToJpgStatus,
     );
-    await saveBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
-    pdfToJpgStatus.textContent = `JPG ZIP 已生成，质量 ${(quality * 100).toFixed(0)}%`;
+    const saved = await saveBytes(zipBytes, `${getFileBaseName(state.pdfToJpgFile)}-jpg.zip`, "application/zip");
+    if (saved) {
+      pdfToJpgStatus.textContent = `JPG ZIP 已生成，质量 ${(quality * 100).toFixed(0)}%`;
+      completeTaskProgress("PDF 转 JPG", "JPG ZIP 已生成。");
+    } else {
+      cancelTaskProgress("PDF 转 JPG", "已取消保存 JPG ZIP。");
+    }
   } catch (error) {
+    failTaskProgress("PDF 转 JPG", `转换失败：${getErrorMessage(error)}`);
     alert(`PDF 转 JPG 失败：${getErrorMessage(error)}`);
   } finally {
     pdfToJpgBtn.textContent = "下载 JPG ZIP";
@@ -1913,17 +2106,23 @@ photoResizeInput.addEventListener("change", async (event) => {
   }
 
   try {
+    resetTaskProgressTone();
+    showTaskProgress("读取照片", `正在读取 ${file.name}`, 0, 3);
     state.photoResizeBitmap = await createImageBitmap(file);
+    showTaskProgress("读取照片", "正在读取照片尺寸", 1, 3);
     photoResizeWidthInput.value = String(state.photoResizeBitmap.width);
     photoResizeHeightInput.value = String(state.photoResizeBitmap.height);
     photoResizeAutoSourceBtn.disabled = false;
+    showTaskProgress("读取照片", "正在检测背景色并生成预览", 2, 3);
     const sourceColor = detectPhotoBackgroundColor();
     if (sourceColor) {
       photoResizeSourceBgInput.value = rgbToHex(sourceColor);
     }
     photoResizeStatus.textContent = `已选择 ${file.name}`;
     drawPhotoResizePreview();
+    completeTaskProgress("读取照片", `已载入 ${file.name}。`);
   } catch (error) {
+    failTaskProgress("读取照片", `读取失败：${getErrorMessage(error)}`);
     state.photoResizeFile = null;
     photoResizeStatus.textContent = "照片读取失败";
     photoResizeDownloadBtn.disabled = true;
@@ -1966,6 +2165,8 @@ photoResizeCanvas.addEventListener("click", (event) => {
 photoResizeDownloadBtn.addEventListener("click", async () => {
   if (!state.photoResizeBitmap) return;
 
+  resetTaskProgressTone();
+  showTaskProgress("照片尺寸与背景", "正在生成处理后的图片", 0, 1);
   photoResizeDownloadBtn.disabled = true;
   photoResizeDownloadBtn.textContent = "生成中...";
 
@@ -1975,9 +2176,15 @@ photoResizeDownloadBtn.addEventListener("click", async () => {
     const blob = await canvasToBlob(photoResizeCanvas, "image/png");
     const bytes = new Uint8Array(await blob.arrayBuffer());
     const baseName = state.photoResizeFile ? getFileBaseName(state.photoResizeFile) : "photo";
-    await saveBytes(bytes, `${baseName}-${settings.width}x${settings.height}.png`, "image/png");
-    photoResizeStatus.textContent = `已生成 ${settings.width} x ${settings.height}px PNG`;
+    const saved = await saveBytes(bytes, `${baseName}-${settings.width}x${settings.height}.png`, "image/png");
+    if (saved) {
+      photoResizeStatus.textContent = `已生成 ${settings.width} x ${settings.height}px PNG`;
+      completeTaskProgress("照片尺寸与背景", "处理后的 PNG 已生成。");
+    } else {
+      cancelTaskProgress("照片尺寸与背景", "已取消保存处理后的 PNG。");
+    }
   } catch (error) {
+    failTaskProgress("照片尺寸与背景", `生成失败：${getErrorMessage(error)}`);
     alert(`照片导出失败：${getErrorMessage(error)}`);
   } finally {
     photoResizeDownloadBtn.textContent = "下载处理后照片";

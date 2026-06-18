@@ -26,6 +26,17 @@
         </nav>
       </section>
 
+      <section class="task-progress is-hidden" id="taskProgress" aria-live="polite" aria-atomic="true">
+        <div class="task-progress-head">
+          <strong id="taskProgressTitle">准备开始</strong>
+          <span id="taskProgressValue">0%</span>
+        </div>
+        <div class="task-progress-bar" aria-hidden="true">
+          <span id="taskProgressBar"></span>
+        </div>
+        <p id="taskProgressDetail">长任务执行时会在这里显示实时进度。</p>
+      </section>
+
       <section class="app-page is-active" id="editPage">
         <section class="document-bar" aria-label="当前 PDF 状态">
           <div class="status-block">

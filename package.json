@@ -1,6 +1,6 @@
 {
   "name": "moapdf",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "MoaPDF local PDF toolkit",
   "author": "Moaxiy",
   "private": true,
@@ -15,7 +15,6 @@
   "devDependencies": {
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.11.2",
-    "@tauri-apps/plugin-dialog": "^2.7.1",
     "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
