@@ -18,7 +18,7 @@ function isTauriApp() {
 
 export async function saveBytes(progress, bytes, filename, type = "application/pdf") {
   if (!isTauriApp()) {
-    progress.showTaskProgress("Save file", `Preparing ${filename}`, 0, 1);
+    progress.showTaskProgress("保存文件", `正在准备 ${filename}`, 0, 1);
     downloadBytes(bytes, filename, type);
     return true;
   }
@@ -28,12 +28,12 @@ export async function saveBytes(progress, bytes, filename, type = "application/p
     import("@tauri-apps/api/core"),
   ]);
 
-  progress.showTaskProgress("Save file", `Choose where to save ${filename}`, 0, 2);
+  progress.showTaskProgress("保存文件", `请选择 ${filename} 的保存位置`, 0, 2);
   const filePath = await save({
     defaultPath: filename,
     filters: [
       {
-        name: type === "application/zip" ? "ZIP" : type.startsWith("text/") ? "Text" : "PDF / File",
+        name: type === "application/zip" ? "ZIP 压缩包" : type.startsWith("text/") ? "文本文件" : "PDF / 文件",
         extensions: [filename.includes(".") ? filename.split(".").pop() : ""].filter(Boolean),
       },
     ],
@@ -43,10 +43,10 @@ export async function saveBytes(progress, bytes, filename, type = "application/p
     return false;
   }
 
-  progress.showTaskProgress("Save file", `Writing ${filename}`, 1, 2);
+  progress.showTaskProgress("保存文件", `正在写入 ${filename}`, 1, 2);
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   await invoke("save_export", { path: filePath, bytes: Array.from(data) });
-  progress.showTaskProgress("Save file", `Saved ${filename}`, 2, 2);
+  progress.showTaskProgress("保存文件", `已保存 ${filename}`, 2, 2);
   return true;
 }
 

@@ -25,12 +25,12 @@ export function initMergeFeature({ state, dom, progress }) {
         <div class="merge-order">${index + 1}</div>
         <div class="merge-info">
           <strong>${item.file.name}</strong>
-          <span>${item.pageCount} pages</span>
+          <span>${item.pageCount} 页</span>
         </div>
         <div class="merge-row-actions">
-          <button type="button" class="move-up" ${index === 0 ? "disabled" : ""}>Up</button>
-          <button type="button" class="move-down" ${index === state.mergeFiles.length - 1 ? "disabled" : ""}>Down</button>
-          <button type="button" class="remove">Remove</button>
+          <button type="button" class="move-up" ${index === 0 ? "disabled" : ""}>上移</button>
+          <button type="button" class="move-down" ${index === state.mergeFiles.length - 1 ? "disabled" : ""}>下移</button>
+          <button type="button" class="remove">移除</button>
         </div>
       `;
       row.querySelector(".move-up").addEventListener("click", () => {
@@ -56,24 +56,24 @@ export function initMergeFeature({ state, dom, progress }) {
     const pdfFiles = [...files].filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
     if (pdfFiles.length === 0) return;
     progress.resetTaskProgressTone();
-    progress.showTaskProgress("Merge PDFs", `Reading ${pdfFiles.length} PDFs`, 0, pdfFiles.length);
+    progress.showTaskProgress("合并 PDF", `正在读取 ${pdfFiles.length} 个 PDF`, 0, pdfFiles.length);
     dom.mergeDownloadBtn.disabled = true;
-    dom.mergeDownloadBtn.textContent = "Reading...";
+    dom.mergeDownloadBtn.textContent = "读取中...";
     try {
       const items = [];
       for (const [index, file] of pdfFiles.entries()) {
-        progress.showTaskProgress("Merge PDFs", `Reading ${index + 1} of ${pdfFiles.length}`, index, pdfFiles.length);
+        progress.showTaskProgress("合并 PDF", `正在读取第 ${index + 1} / ${pdfFiles.length} 个文件`, index, pdfFiles.length);
         items.push({ file, pageCount: await readPdfPageCount(file) });
-        progress.showTaskProgress("Merge PDFs", `Loaded ${index + 1} of ${pdfFiles.length}`, index + 1, pdfFiles.length);
+        progress.showTaskProgress("合并 PDF", `已读取第 ${index + 1} / ${pdfFiles.length} 个文件`, index + 1, pdfFiles.length);
       }
       state.mergeFiles = items;
       renderMergeList();
-      progress.completeTaskProgress("Merge PDFs", `${items.length} files are ready`);
+      progress.completeTaskProgress("合并 PDF", `已就绪 ${items.length} 个文件`);
     } catch (error) {
-      progress.failTaskProgress("Merge PDFs", `Read failed: ${getErrorMessage(error)}`);
-      alert(`Reading merge files failed: ${getErrorMessage(error)}`);
+      progress.failTaskProgress("合并 PDF", `读取失败：${getErrorMessage(error)}`);
+      alert(`读取待合并文件失败：${getErrorMessage(error)}`);
     } finally {
-      dom.mergeDownloadBtn.textContent = "Download merged PDF";
+      dom.mergeDownloadBtn.textContent = "下载合并后的 PDF";
       updateMergeControls();
     }
   }
@@ -81,13 +81,13 @@ export function initMergeFeature({ state, dom, progress }) {
   async function buildMergedPdf() {
     const outputPdf = await PDFDocument.create();
     for (const [index, item] of state.mergeFiles.entries()) {
-      progress.showTaskProgress("Merge PDFs", `Merging ${index + 1} of ${state.mergeFiles.length}`, index, state.mergeFiles.length);
+      progress.showTaskProgress("合并 PDF", `正在合并第 ${index + 1} / ${state.mergeFiles.length} 个文件`, index, state.mergeFiles.length);
       const bytes = await item.file.arrayBuffer();
       const sourcePdf = await PDFDocument.load(bytes);
       const pageIndexes = sourcePdf.getPageIndices();
       const copiedPages = await outputPdf.copyPages(sourcePdf, pageIndexes);
       copiedPages.forEach((page) => outputPdf.addPage(page));
-      progress.showTaskProgress("Merge PDFs", `Merged ${index + 1} of ${state.mergeFiles.length}`, index + 1, state.mergeFiles.length);
+      progress.showTaskProgress("合并 PDF", `已合并第 ${index + 1} / ${state.mergeFiles.length} 个文件`, index + 1, state.mergeFiles.length);
     }
     return outputPdf.save();
   }
@@ -98,22 +98,22 @@ export function initMergeFeature({ state, dom, progress }) {
   dom.mergeDownloadBtn.addEventListener("click", async () => {
     if (state.mergeFiles.length < 2) return;
     progress.resetTaskProgressTone();
-    progress.showTaskProgress("Merge PDFs", `Preparing ${state.mergeFiles.length} files`, 0, state.mergeFiles.length);
+    progress.showTaskProgress("合并 PDF", `正在准备 ${state.mergeFiles.length} 个文件`, 0, state.mergeFiles.length);
     dom.mergeDownloadBtn.disabled = true;
-    dom.mergeDownloadBtn.textContent = "Merging...";
+    dom.mergeDownloadBtn.textContent = "合并中...";
     try {
       const outputBytes = await buildMergedPdf();
       const saved = await saveBytes(progress, outputBytes, "merged.pdf");
       if (saved) {
-        progress.completeTaskProgress("Merge PDFs", "Merged PDF created");
+        progress.completeTaskProgress("合并 PDF", "已生成合并后的 PDF");
       } else {
-        progress.cancelTaskProgress("Merge PDFs", "Save cancelled");
+        progress.cancelTaskProgress("合并 PDF", "已取消保存");
       }
     } catch (error) {
-      progress.failTaskProgress("Merge PDFs", `Merge failed: ${getErrorMessage(error)}`);
-      alert(`Merge PDF failed: ${getErrorMessage(error)}`);
+      progress.failTaskProgress("合并 PDF", `合并失败：${getErrorMessage(error)}`);
+      alert(`合并 PDF 失败：${getErrorMessage(error)}`);
     } finally {
-      dom.mergeDownloadBtn.textContent = "Download merged PDF";
+      dom.mergeDownloadBtn.textContent = "下载合并后的 PDF";
       updateMergeControls();
     }
   });

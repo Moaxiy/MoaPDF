@@ -21,7 +21,15 @@ export function createAppState() {
     pdfToJpgFile: null,
     photoResizeFile: null,
     photoResizeBitmap: null,
+    photoResizeSourceBackground: null,
     photoResizeDrawBox: null,
+    photoResizeCrop: null,
+    photoResizeCropDraft: null,
+    photoResizeCropMode: false,
+    photoResizeCropInteraction: null,
+    photoResizeCropStartRect: null,
+    photoResizePointerActive: false,
+    photoResizePointerStart: null,
     taskProgressTimer: null,
   };
 }

@@ -42,7 +42,7 @@ export function initEditorFeature({ state, dom, progress }) {
   function updateSelectionControls() {
     const selectedCount = state.selectedPages.size;
     if (dom.selectionCount) {
-      dom.selectionCount.textContent = selectedCount > 0 ? `Selected ${selectedCount} pages` : "No pages selected";
+      dom.selectionCount.textContent = selectedCount > 0 ? `已选择 ${selectedCount} 页` : "未选择页面";
     }
     if (dom.selectAllBtn) dom.selectAllBtn.disabled = !state.file;
     if (dom.clearSelectionBtn) dom.clearSelectionBtn.disabled = selectedCount === 0;
@@ -67,13 +67,13 @@ export function initEditorFeature({ state, dom, progress }) {
     updateSelectionControls();
 
     if (!state.file) {
-      dom.fileNameEl.textContent = "No file selected";
-      dom.pageCountEl.textContent = "Select a PDF to inspect its pages";
+      dom.fileNameEl.textContent = "未选择文件";
+      dom.pageCountEl.textContent = "请选择一个 PDF 查看页面";
       return;
     }
 
     dom.fileNameEl.textContent = state.file.name;
-    dom.pageCountEl.textContent = `${outputCount} pages, ${blankCount} blank pages inserted, ${deletedCount} pages removed`;
+    dom.pageCountEl.textContent = `共 ${outputCount} 页，插入空白页 ${blankCount} 页，移除 ${deletedCount} 页`;
   }
 
   function getOutputSequence() {
@@ -83,14 +83,14 @@ export function initEditorFeature({ state, dom, progress }) {
       if (state.deletedPages.has(pageNumber)) continue;
       sequence.push({
         type: "page",
-        detail: `Original page ${pageNumber}`,
+        detail: `原始第 ${pageNumber} 页`,
         sourcePage: pageNumber,
       });
       const blanksHere = getInsertionCount(pageNumber);
       for (let blank = 0; blank < blanksHere; blank += 1) {
         sequence.push({
           type: "blank",
-          detail: `Inserted after page ${pageNumber}`,
+          detail: `插入在第 ${pageNumber} 页后`,
           afterPage: pageNumber,
           blankIndex: blank,
         });
@@ -106,7 +106,7 @@ export function initEditorFeature({ state, dom, progress }) {
 
     if (!state.file || sequence.length === 0) {
       dom.previewEmpty.hidden = false;
-      dom.previewEmpty.textContent = state.file ? "There are no output pages right now" : "Select a PDF to preview the final order";
+      dom.previewEmpty.textContent = state.file ? "当前没有可输出的页面" : "请选择 PDF 预览最终顺序";
       return;
     }
 
@@ -119,19 +119,19 @@ export function initEditorFeature({ state, dom, progress }) {
       card.innerHTML = item.type === "page"
         ? `
           <div class="preview-card-media">
-            <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="Preview page ${outputPageNumber}"></canvas>
+            <canvas class="page-thumb preview-thumb" data-page="${item.sourcePage}" aria-label="预览第 ${outputPageNumber} 页"></canvas>
           </div>
           <div class="preview-card-body">
-            <strong>Page ${outputPageNumber}</strong>
+            <strong>第 ${outputPageNumber} 页</strong>
             <span>${item.detail}</span>
           </div>
         `
         : `
           <div class="preview-card-media">
-            <div class="blank-preview preview-blank" aria-hidden="true">Blank</div>
+            <div class="blank-preview preview-blank" aria-hidden="true">空白页</div>
           </div>
           <div class="preview-card-body">
-            <strong>Page ${outputPageNumber}</strong>
+            <strong>第 ${outputPageNumber} 页</strong>
             <span>${item.detail}</span>
           </div>
         `;
@@ -160,22 +160,22 @@ export function initEditorFeature({ state, dom, progress }) {
 
     row.innerHTML = `
       <div class="page-id">
-        <canvas class="page-thumb" data-page="${pageNumber}" aria-label="Preview original page ${pageNumber}"></canvas>
+        <canvas class="page-thumb" data-page="${pageNumber}" aria-label="预览原始第 ${pageNumber} 页"></canvas>
         <div>
-          <strong>Page ${pageNumber}</strong>
-          <span>${isDeleted ? `Original page ${pageNumber} will be removed` : `Original page ${pageNumber} stays in the output`}</span>
+          <strong>第 ${pageNumber} 页</strong>
+          <span>${isDeleted ? `原始第 ${pageNumber} 页将被移除` : `原始第 ${pageNumber} 页将保留在输出中`}</span>
         </div>
       </div>
       <div class="page-tools">
-        <button class="delete-page" type="button">${isDeleted ? "Restore page" : "Remove page"}</button>
-        <div class="order-tools" aria-label="Move page ${pageNumber}">
-          <button class="move-up" type="button" title="Move page up" ${orderIndex <= 0 ? "disabled" : ""}>Up</button>
-          <button class="move-down" type="button" title="Move page down" ${orderIndex >= state.pageOrder.length - 1 ? "disabled" : ""}>Down</button>
+        <button class="delete-page" type="button">${isDeleted ? "恢复页面" : "移除页面"}</button>
+        <div class="order-tools" aria-label="移动第 ${pageNumber} 页">
+          <button class="move-up" type="button" title="上移页面" ${orderIndex <= 0 ? "disabled" : ""}>上移</button>
+          <button class="move-down" type="button" title="下移页面" ${orderIndex >= state.pageOrder.length - 1 ? "disabled" : ""}>下移</button>
         </div>
-        <div class="stepper" aria-label="Blank pages after ${pageNumber}">
-          <button class="minus" type="button" title="Remove blank page" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
-          <span>${isDeleted ? "Removed" : count}</span>
-          <button class="plus" type="button" title="Add blank page" ${isDeleted ? "disabled" : ""}>+</button>
+        <div class="stepper" aria-label="第 ${pageNumber} 页后插入空白页">
+          <button class="minus" type="button" title="减少空白页" ${count === 0 || isDeleted ? "disabled" : ""}>-</button>
+          <span>${isDeleted ? "已移除" : count}</span>
+          <button class="plus" type="button" title="增加空白页" ${isDeleted ? "disabled" : ""}>+</button>
         </div>
       </div>
     `;
@@ -232,15 +232,15 @@ export function initEditorFeature({ state, dom, progress }) {
     row.dataset.blankIndex = String(index);
     row.innerHTML = `
       <div class="page-id">
-        <div class="blank-preview" aria-hidden="true">Blank</div>
+        <div class="blank-preview" aria-hidden="true">空白页</div>
         <div>
-          <strong>Blank page after ${pageNumber}</strong>
-          <span>This page will be inserted after original page ${pageNumber}</span>
+          <strong>第 ${pageNumber} 页后的空白页</strong>
+          <span>该页面会插入到原始第 ${pageNumber} 页之后</span>
         </div>
       </div>
       <div class="page-tools blank-tools">
-        <span>Live output preview</span>
-        <button class="delete-blank" type="button">Remove blank page</button>
+        <span>实时输出预览</span>
+        <button class="delete-blank" type="button">移除空白页</button>
       </div>
     `;
     row.querySelector(".delete-blank").addEventListener("click", () => {
@@ -279,7 +279,7 @@ export function initEditorFeature({ state, dom, progress }) {
     for (const canvas of canvases) {
       const pageNumber = Number(canvas.dataset.page);
       renderThumbnail(pageNumber, canvas, token).catch((error) => {
-        canvas.replaceWith(document.createTextNode(`Preview failed: ${getErrorMessage(error)}`));
+        canvas.replaceWith(document.createTextNode(`预览失败：${getErrorMessage(error)}`));
       });
     }
   }
@@ -325,18 +325,18 @@ export function initEditorFeature({ state, dom, progress }) {
       return;
     }
     dom.recentFiles.innerHTML = `
-      <span>Recent</span>
+      <span>最近打开</span>
       <div>${files.map((file) => `<strong title="${file.name}">${file.name}</strong>`).join("")}</div>
     `;
   }
 
   async function loadPdf(file) {
-    progress.showTaskProgress("Read PDF", `Reading ${file.name}`, 0, 4);
+    progress.showTaskProgress("读取 PDF", `正在读取 ${file.name}`, 0, 4);
     const bytes = await file.arrayBuffer();
-    progress.showTaskProgress("Read PDF", "Parsing pages", 1, 4);
+    progress.showTaskProgress("读取 PDF", "正在解析页面", 1, 4);
     const pdfBytes = bytes.slice(0);
     const pdf = await PDFDocument.load(bytes);
-    progress.showTaskProgress("Read PDF", "Preparing preview", 2, 4);
+    progress.showTaskProgress("读取 PDF", "正在准备预览", 2, 4);
     const previewPdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
 
     state.file = file;
@@ -351,9 +351,9 @@ export function initEditorFeature({ state, dom, progress }) {
     state.lastSelectedPage = null;
     saveRecentFile(file);
 
-    progress.showTaskProgress("Read PDF", `Loaded ${state.pageSizes.length} pages`, 3, 4);
+    progress.showTaskProgress("读取 PDF", `已加载 ${state.pageSizes.length} 页`, 3, 4);
     renderPages();
-    progress.completeTaskProgress("Read PDF", `${file.name} is ready`);
+    progress.completeTaskProgress("读取 PDF", `${file.name} 已就绪`);
   }
 
   function addBlankPage(outputPdf, position) {
@@ -366,7 +366,7 @@ export function initEditorFeature({ state, dom, progress }) {
     const outputPdf = await PDFDocument.create();
     const outputCount = getOutputCount();
     if (outputCount === 0) {
-      throw new Error("At least one page must remain in the output PDF");
+      throw new Error("输出 PDF 至少需要保留一页");
     }
 
     const keptPageIndexes = [];
@@ -395,19 +395,19 @@ export function initEditorFeature({ state, dom, progress }) {
     const seen = new Set();
     const chunks = value.split(",").map((chunk) => chunk.trim()).filter(Boolean);
     if (chunks.length === 0) {
-      throw new Error("Please enter a page range");
+      throw new Error("请输入页码范围");
     }
 
     for (const chunk of chunks) {
       const match = chunk.match(/^(\d+)(?:-(\d+))?$/);
-      if (!match) throw new Error(`Invalid page range: ${chunk}`);
+      if (!match) throw new Error(`页码范围格式无效：${chunk}`);
       const start = Number(match[1]);
       const end = match[2] ? Number(match[2]) : start;
       if (start < 1 || end < 1 || start > pageCount || end > pageCount) {
-        throw new Error(`Page range is out of bounds: ${chunk}`);
+        throw new Error(`页码范围超出限制：${chunk}`);
       }
       if (start > end) {
-        throw new Error(`Range start cannot exceed range end: ${chunk}`);
+        throw new Error(`起始页不能大于结束页：${chunk}`);
       }
       for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
         if (!seen.has(pageNumber)) {
@@ -435,8 +435,8 @@ export function initEditorFeature({ state, dom, progress }) {
       progress.resetTaskProgressTone();
       await loadPdf(file);
     } catch (error) {
-      progress.failTaskProgress("Read PDF", `Read failed: ${getErrorMessage(error)}`);
-      alert(`Read PDF failed: ${getErrorMessage(error)}`);
+      progress.failTaskProgress("读取 PDF", `读取失败：${getErrorMessage(error)}`);
+      alert(`读取 PDF 失败：${getErrorMessage(error)}`);
       resetEditorState(state);
       renderPages();
     }
@@ -445,23 +445,23 @@ export function initEditorFeature({ state, dom, progress }) {
   dom.downloadBtn.addEventListener("click", async () => {
     if (!state.file || !hasPendingPageEdits()) return;
     progress.resetTaskProgressTone();
-    progress.showTaskProgress("Export PDF", "Building the output PDF", 0, 1);
+    progress.showTaskProgress("导出 PDF", "正在生成输出 PDF", 0, 1);
     dom.downloadBtn.disabled = true;
-    dom.downloadBtn.textContent = "Exporting...";
+    dom.downloadBtn.textContent = "导出中...";
     try {
       const outputBytes = await buildOutputPdf();
       const baseName = state.file.name.replace(/\.pdf$/i, "");
       const saved = await saveBytes(progress, outputBytes, `${baseName}-with-blanks.pdf`);
       if (saved) {
-        progress.completeTaskProgress("Export PDF", "The edited PDF was generated");
+        progress.completeTaskProgress("导出 PDF", "已生成编辑后的 PDF");
       } else {
-        progress.cancelTaskProgress("Export PDF", "Save cancelled");
+        progress.cancelTaskProgress("导出 PDF", "已取消保存");
       }
     } catch (error) {
-      progress.failTaskProgress("Export PDF", `Export failed: ${getErrorMessage(error)}`);
-      alert(`Export PDF failed: ${getErrorMessage(error)}`);
+      progress.failTaskProgress("导出 PDF", `导出失败：${getErrorMessage(error)}`);
+      alert(`导出 PDF 失败：${getErrorMessage(error)}`);
     } finally {
-      dom.downloadBtn.textContent = "Download edited PDF";
+      dom.downloadBtn.textContent = "下载编辑后的 PDF";
       updateSummary();
     }
   });
@@ -503,23 +503,23 @@ export function initEditorFeature({ state, dom, progress }) {
   dom.splitDownloadBtn.addEventListener("click", async () => {
     if (!state.file) return;
     progress.resetTaskProgressTone();
-    progress.showTaskProgress("Split PDF", "Building the split PDF", 0, 1);
+    progress.showTaskProgress("拆分 PDF", "正在生成拆分后的 PDF", 0, 1);
     dom.splitDownloadBtn.disabled = true;
-    dom.splitDownloadBtn.textContent = "Splitting...";
+    dom.splitDownloadBtn.textContent = "拆分中...";
     try {
       const outputBytes = await buildSplitPdf();
       const baseName = state.file.name.replace(/\.pdf$/i, "");
       const saved = await saveBytes(progress, outputBytes, `${baseName}-split.pdf`);
       if (saved) {
-        progress.completeTaskProgress("Split PDF", "Split PDF created");
+        progress.completeTaskProgress("拆分 PDF", "已生成拆分后的 PDF");
       } else {
-        progress.cancelTaskProgress("Split PDF", "Save cancelled");
+        progress.cancelTaskProgress("拆分 PDF", "已取消保存");
       }
     } catch (error) {
-      progress.failTaskProgress("Split PDF", `Split failed: ${getErrorMessage(error)}`);
-      alert(`Split PDF failed: ${getErrorMessage(error)}`);
+      progress.failTaskProgress("拆分 PDF", `拆分失败：${getErrorMessage(error)}`);
+      alert(`拆分 PDF 失败：${getErrorMessage(error)}`);
     } finally {
-      dom.splitDownloadBtn.textContent = "Download split PDF";
+      dom.splitDownloadBtn.textContent = "下载拆分后的 PDF";
       updateSummary();
     }
   });

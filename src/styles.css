@@ -1225,6 +1225,49 @@ h1 {
   background: var(--panel);
 }
 
+.photo-resize-options input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.photo-custom-size-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.photo-custom-size-panel[hidden] {
+  display: none;
+}
+
+.photo-custom-size-panel button {
+  min-height: 36px;
+  align-self: end;
+}
+
+.photo-crop-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.photo-crop-toolbar .photo-crop-ratio {
+  flex: 1 1 220px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-soft);
+}
+
+.photo-crop-toolbar button {
+  min-height: 36px;
+}
+
 .photo-preview-box {
   display: grid;
   place-items: center;
@@ -1247,7 +1290,20 @@ h1 {
   border: 1px solid rgba(20, 32, 54, 0.12);
   background: white;
   box-shadow: 0 10px 22px rgba(20, 32, 54, 0.12);
+  cursor: default;
+}
+
+.photo-preview-box canvas.is-crop-mode {
   cursor: crosshair;
+  outline: 2px solid rgba(47, 111, 237, 0.5);
+  outline-offset: 2px;
+}
+
+.photo-crop-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .compression-options label {
@@ -1401,6 +1457,10 @@ h1 {
   }
 
   .convert-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-custom-size-panel {
     grid-template-columns: 1fr;
   }
 }
