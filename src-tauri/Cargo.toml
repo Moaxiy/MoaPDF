@@ -1,6 +1,6 @@
 [package]
 name = "moapdf"
-version = "0.1.13"
+version = "0.1.14"
 description = "MoaPDF local PDF toolkit"
 authors = ["Moaxiy"]
 edition = "2021"
