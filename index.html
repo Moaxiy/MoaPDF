@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MoaPDF</title>
     <link rel="icon" href="./codex-pdf-icon.svg" type="image/svg+xml" />
-    <script type="module" crossorigin src="./assets/index-BYt8szhe.js"></script>
+    <script type="module" crossorigin src="./assets/index-Cm-8l7ua.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/pdf-VQoeDJgY.js">
     <link rel="modulepreload" crossorigin href="./assets/zip-CI1gBSIY.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-CYybpPbS.css">
+    <link rel="stylesheet" crossorigin href="./assets/index-BAvmGnk2.css">
   </head>
   <body>
     <main class="app-shell">
@@ -27,6 +27,17 @@
           <button class="nav-tab is-active" type="button" data-page-target="editPage">页面整理</button>
           <button class="nav-tab" type="button" data-page-target="convertPage">格式转换</button>
         </nav>
+      </section>
+
+      <section class="task-progress is-hidden" id="taskProgress" aria-live="polite" aria-atomic="true">
+        <div class="task-progress-head">
+          <strong id="taskProgressTitle">准备开始</strong>
+          <span id="taskProgressValue">0%</span>
+        </div>
+        <div class="task-progress-bar" aria-hidden="true">
+          <span id="taskProgressBar"></span>
+        </div>
+        <p id="taskProgressDetail">长任务执行时会在这里显示实时进度。</p>
       </section>
 
       <section class="app-page is-active" id="editPage">
@@ -302,7 +313,7 @@
               <span>07</span>
               <div>
                 <strong>照片尺寸与背景</strong>
-                <p>调整照片输出尺寸，使用指定背景色补齐画布。</p>
+                <p>调整照片输出尺寸，支持裁剪保留主体，并用指定背景色补齐画布。</p>
               </div>
             </div>
             <label class="tool-drop">
@@ -311,20 +322,38 @@
             </label>
             <div class="photo-resize-options" aria-label="照片尺寸与背景设置">
               <label>
-                <span>宽度 px</span>
-                <input id="photoResizeWidthInput" type="number" min="1" max="8000" value="800" />
+                <span>常用尺寸</span>
+                <select id="photoResizeSizePreset">
+                  <option value="295x413" selected>一寸 295 x 413</option>
+                  <option value="413x579">二寸 413 x 579</option>
+                  <option value="260x378">小一寸 260 x 378</option>
+                  <option value="350x500">社保/简历照 350 x 500</option>
+                  <option value="custom">自定义尺寸</option>
+                </select>
               </label>
+              <div id="photoResizeCustomSizePanel" class="photo-custom-size-panel" hidden>
+                <label>
+                  <span>宽度 px</span>
+                  <input id="photoResizeWidthInput" type="number" min="1" max="8000" value="295" />
+                </label>
+                <label>
+                  <span>高度 px</span>
+                  <input id="photoResizeHeightInput" type="number" min="1" max="8000" value="413" />
+                </label>
+                <button id="photoResizeApplyCustomSizeBtn" type="button" class="secondary">应用自定义尺寸</button>
+              </div>
               <label>
-                <span>高度 px</span>
-                <input id="photoResizeHeightInput" type="number" min="1" max="8000" value="800" />
+                <span>常用背景色</span>
+                <select id="photoResizeBgPreset">
+                  <option value="#ffffff" selected>白底</option>
+                  <option value="#438edb">蓝底</option>
+                  <option value="#e33d3d">红底</option>
+                  <option value="custom">自定义颜色</option>
+                </select>
               </label>
               <label>
                 <span>背景颜色</span>
                 <input id="photoResizeBgInput" type="color" value="#ffffff" />
-              </label>
-              <label>
-                <span>原背景色</span>
-                <input id="photoResizeSourceBgInput" type="color" value="#3f95de" />
               </label>
               <label>
                 <span>填充方式</span>
@@ -343,9 +372,18 @@
                 <input id="photoResizeToleranceInput" type="range" min="20" max="180" step="5" value="95" />
               </label>
             </div>
+            <div class="photo-crop-toolbar" aria-label="照片裁剪工具">
+              <label class="check-row photo-crop-ratio">
+                <input id="photoResizeCropRatioInput" type="checkbox" checked />
+                <span>按输出比例裁剪</span>
+              </label>
+              <button id="photoResizeCropToggleBtn" class="secondary" type="button" disabled>开始裁剪</button>
+              <button id="photoResizeCropClearBtn" class="secondary" type="button" disabled>清除裁剪</button>
+            </div>
             <div class="photo-preview-box" id="photoResizePreviewBox">
               <canvas id="photoResizeCanvas" width="800" height="800" aria-label="照片预览"></canvas>
             </div>
+            <p class="photo-crop-hint">点击“开始裁剪”后，在预览图中拖拽框选保留区域；可拖动已有裁剪框微调，双击预览图也可快速开关裁剪模式。</p>
             <button id="photoResizeDownloadBtn" class="primary" disabled>下载处理后照片</button>
             <p id="photoResizeStatus" class="tool-status">尚未选择照片</p>
           </article>
